@@ -27,7 +27,7 @@ end";
                 var text = File.ReadAllText(path);
                 var podIndex = text.IndexOf("pod 'IronSourceSDK'", StringComparison.InvariantCulture);
                 var index = text.IndexOf('\n', podIndex); 
-                text = text.Insert(index + 1, "  pod 'NeftaISAdapter', :git => 'https://github.com/Nefta-io/NeftaISAdapter.git', :tag => '1.1.3'\n");
+                text = text.Insert(index + 1, "  pod 'NeftaISAdapter', :git => 'https://github.com/Nefta-io/NeftaISAdapter.git', :tag => '1.1.4'\n");
 
                 // if you're are in framework mode (use_frameworks!) and link them statically (:linkage => :static)
                 // var iphoneTargetIndex = text.IndexOf("target 'Unity-iPhone' do", StringComparison.InvariantCulture);
@@ -42,7 +42,7 @@ end";
         [MenuItem("Ads Mediation/Export Nefta Custom Adapter SDK", false, int.MaxValue)]
         private static void ExportAdSdkPackage()
         {
-          var packageName = "NeftaIS_SDK_v1.1.3.unitypackage";
+          var packageName = "NeftaIS_SDK_v1.1.4.unitypackage";
           var assetPaths = new string[] { "Assets/NeftaCustomAdapter" };
 
           try
