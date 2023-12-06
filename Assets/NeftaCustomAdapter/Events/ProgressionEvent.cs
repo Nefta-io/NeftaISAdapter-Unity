@@ -21,6 +21,7 @@ namespace Nefta.Core.Events
         Achievement,
         PlayerLevel,
         ItemLevel,
+        Unlock,
         Other
     }
 
@@ -53,6 +54,7 @@ namespace Nefta.Core.Events
             { Type.Achievement, "achievement" },
             { Type.PlayerLevel, "player-level" },
             { Type.ItemLevel, "item-level" },
+            { Type.Unlock, "item-level" },
             { Type.Other, "other" },
         };
 
