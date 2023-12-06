@@ -23,17 +23,28 @@ end";
         {
             if (target == BuildTarget.iOS)
             {
+                const string dependency = "pod 'NeftaMAXAdapter', :git => 'https://github.com/Nefta-io/NeftaISAdapter.git', :tag => '1.1.6'";
+                
                 var path = buildPath + "/Podfile";
                 var text = File.ReadAllText(path);
-                var podIndex = text.IndexOf("pod 'IronSourceSDK'", StringComparison.InvariantCulture);
-                var index = text.IndexOf('\n', podIndex); 
-                text = text.Insert(index + 1, "  pod 'NeftaISAdapter', :git => 'https://github.com/Nefta-io/NeftaISAdapter.git', :tag => '1.1.6'\n");
+                var podIndex = text.IndexOf("pod 'NeftaISAdapter'", StringComparison.InvariantCulture);
+                if (podIndex >= 0)
+                {
+                    var dependencyEnd = text.IndexOf('\n', podIndex);
+                    text = text.Substring(0, podIndex) + dependency + text.Substring(dependencyEnd);
+                }
+                else
+                {
+                    podIndex = text.IndexOf("pod 'IronSourceSDK'", StringComparison.InvariantCulture);
+                    var index = text.IndexOf('\n', podIndex);
+                    text = text.Insert(index + 1, $"  {dependency}\n");
+                }
 
                 var configuration = GetNeftaConfiguration();
                 if (configuration != null && configuration._forceIncludeNeftaSDK)
                 {
                     var iphoneTargetIndex = text.IndexOf("target 'Unity-iPhone' do", StringComparison.InvariantCulture);
-                    index = text.IndexOf('\n', iphoneTargetIndex);
+                    var index = text.IndexOf('\n', iphoneTargetIndex);
                     text = text.Insert(index + 1, "  pod 'NeftaSDK'\n");
                 }
 
