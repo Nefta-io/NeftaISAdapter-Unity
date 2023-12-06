@@ -27,7 +27,7 @@ end";
                 var text = File.ReadAllText(path);
                 var podIndex = text.IndexOf("pod 'IronSourceSDK'", StringComparison.InvariantCulture);
                 var index = text.IndexOf('\n', podIndex); 
-                text = text.Insert(index + 1, "  pod 'NeftaISAdapter', :git => 'https://github.com/Nefta-io/NeftaISAdapter.git', :tag => '1.1.5'\n");
+                text = text.Insert(index + 1, "  pod 'NeftaISAdapter', :git => 'https://github.com/Nefta-io/NeftaISAdapter.git', :tag => '1.1.6'\n");
 
                 var configuration = GetNeftaConfiguration();
                 if (configuration != null && configuration._forceIncludeNeftaSDK)
@@ -77,7 +77,7 @@ end";
         [MenuItem("Ads Mediation/Export Nefta Custom Adapter SDK", false, int.MaxValue)]
         private static void ExportAdSdkPackage()
         {
-            var packageName = "NeftaIS_SDK_v1.1.6.unitypackage";
+            var packageName = "NeftaIS_SDK_v1.1.7.unitypackage";
             var assetPaths = new string[] { "Assets/NeftaCustomAdapter" };
 
             try
