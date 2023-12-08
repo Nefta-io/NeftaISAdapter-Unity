@@ -23,7 +23,7 @@ end";
         {
             if (target == BuildTarget.iOS)
             {
-                const string dependency = "pod 'NeftaISAdapter', :git => 'https://github.com/Nefta-io/NeftaISAdapter.git', :tag => '1.1.6'";
+                const string dependency = "pod 'NeftaISAdapter', :git => 'https://github.com/Nefta-io/NeftaISAdapter.git', :tag => '1.1.8'";
                 
                 var path = buildPath + "/Podfile";
                 var text = File.ReadAllText(path);
@@ -88,7 +88,7 @@ end";
         [MenuItem("Ads Mediation/Export Nefta Custom Adapter SDK", false, int.MaxValue)]
         private static void ExportAdSdkPackage()
         {
-            var packageName = "NeftaIS_SDK_v1.1.7.unitypackage";
+            var packageName = "NeftaIS_SDK_v1.1.8.unitypackage";
             var assetPaths = new string[] { "Assets/NeftaCustomAdapter" };
 
             try
