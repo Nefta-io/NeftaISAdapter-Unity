@@ -32,12 +32,12 @@ void * NeftaPlugin_Init(const char *appId)
     return (__bridge_retained void *)_plugin;
 }
 
-void NeftaPlugin_SetCustomBatchSize(void *instance, int newBatchSize)
-{
-    [_plugin SetCustomBatchSize: newBatchSize];
-}
-
 void NeftaPlugin_Record(void *instance, const char *event)
 {
     [_plugin RecordWithEvent: [NSString stringWithUTF8String: event]];
+}
+
+void NeftaPlugin_SetCustomBatchSize(void *instance, int newBatchSize)
+{
+    [_plugin SetCustomBatchSize: newBatchSize];
 }
