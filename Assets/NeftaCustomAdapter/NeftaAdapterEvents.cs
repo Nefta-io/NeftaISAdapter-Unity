@@ -55,8 +55,26 @@ namespace NeftaCustomAdapter
 
             AndroidJavaClass neftaPluginClass = new AndroidJavaClass("com.nefta.sdk.NeftaPlugin");
             _plugin = neftaPluginClass.CallStatic<AndroidJavaObject>("Init", unityActivity, appId);
+
+            Application.focusChanged += OnFocusChanged;
 #endif
         }
+        
+#if !UNITY_EDITOR && UNITY_ANDROID
+        private static void OnFocusChanged(bool hasFocus)
+        {
+            if (hasFocus)
+            {
+                Debug.Log("onresume");
+                _plugin.Call("OnResume");
+            }
+            else
+            {
+                Debug.Log("onpause");
+                _plugin.Call("OnPause");
+            }
+        }
+#endif
 
         public static void Record(GameEvent gameEvent)
         {
