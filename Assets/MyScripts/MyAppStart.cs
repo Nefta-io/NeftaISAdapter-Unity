@@ -1,5 +1,4 @@
 ﻿using UnityEngine;
-using System.Collections;
 
 public class MyAppStart : MonoBehaviour
 {
@@ -17,7 +16,7 @@ public class MyAppStart : MonoBehaviour
         string appKey = "unexpected_platform";
 		#endif
 		Debug.Log ("unity-script: MyAppStart Start called");
-
+		
 		//Dynamic config example
 		IronSourceConfig.Instance.setClientSideCallbacks (true);
 
