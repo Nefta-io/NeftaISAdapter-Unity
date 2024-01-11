@@ -90,6 +90,19 @@ end";
         {
             var packageName = $"NeftaIS_SDK_{Application.version}.unitypackage";
             var assetPaths = new string[] { "Assets/NeftaCustomAdapter" };
+            
+            var guid = AssetDatabase.FindAssets("NeftaCustomAdapter-debug")[0];
+            var path = AssetDatabase.GUIDToAssetPath(guid);
+            var importer = (PluginImporter) AssetImporter.GetAtPath(path);
+            importer.SetCompatibleWithPlatform(BuildTarget.Android, true);
+            importer.SaveAndReimport();
+            
+            guid = AssetDatabase.FindAssets("NeftaCustomAdapter-release")[0];
+            path = AssetDatabase.GUIDToAssetPath(guid);
+            importer = (PluginImporter) AssetImporter.GetAtPath(path);
+            importer.SetCompatibleWithPlatform(BuildTarget.Android, false);
+            importer.SaveAndReimport();
+
 
             try
             {
