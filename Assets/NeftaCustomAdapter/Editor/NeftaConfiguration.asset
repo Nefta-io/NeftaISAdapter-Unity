@@ -13,3 +13,4 @@ MonoBehaviour:
   m_Name: NeftaConfiguration
   m_EditorClassIdentifier: 
   _forceIncludeNeftaSDK: 0
+  _isLoggingEnabled: 1

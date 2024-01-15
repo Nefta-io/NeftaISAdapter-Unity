@@ -23,7 +23,7 @@ end";
         {
             if (target == BuildTarget.iOS)
             {
-                const string dependency = "pod 'NeftaISAdapter', :git => 'https://github.com/Nefta-io/NeftaISAdapter.git', :tag => '1.1.11'";
+                const string dependency = "pod 'NeftaISAdapter', :git => 'https://github.com/Nefta-io/NeftaISAdapter.git', :tag => '1.1.12'";
                 
                 var path = buildPath + "/Podfile";
                 var text = File.ReadAllText(path);
@@ -85,25 +85,27 @@ end";
             Selection.objects = new UnityEngine.Object[] { configuration };
         }
         
+        public static PluginImporter GetImporter(bool debug)
+        {
+            var guid = AssetDatabase.FindAssets(debug ? "NeftaCustomAdapter-debug" : "NeftaCustomAdapter-release")[0];
+            var path = AssetDatabase.GUIDToAssetPath(guid);
+            return (PluginImporter) AssetImporter.GetAtPath(path);
+        }
+        
         [MenuItem("Ads Mediation/Export Nefta Custom Adapter SDK", false, int.MaxValue)]
         private static void ExportAdSdkPackage()
         {
             var packageName = $"NeftaIS_SDK_{Application.version}.unitypackage";
             var assetPaths = new string[] { "Assets/NeftaCustomAdapter" };
             
-            var guid = AssetDatabase.FindAssets("NeftaCustomAdapter-debug")[0];
-            var path = AssetDatabase.GUIDToAssetPath(guid);
-            var importer = (PluginImporter) AssetImporter.GetAtPath(path);
+            var importer = GetImporter(true);
             importer.SetCompatibleWithPlatform(BuildTarget.Android, true);
             importer.SaveAndReimport();
             
-            guid = AssetDatabase.FindAssets("NeftaCustomAdapter-release")[0];
-            path = AssetDatabase.GUIDToAssetPath(guid);
-            importer = (PluginImporter) AssetImporter.GetAtPath(path);
+            importer = GetImporter(false);
             importer.SetCompatibleWithPlatform(BuildTarget.Android, false);
             importer.SaveAndReimport();
-
-
+            
             try
             {
                 AssetDatabase.ExportPackage(assetPaths, packageName, ExportPackageOptions.Recurse);

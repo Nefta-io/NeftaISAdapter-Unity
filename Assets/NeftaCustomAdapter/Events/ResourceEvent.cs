@@ -4,6 +4,7 @@ namespace Nefta.Core.Events
 {
     public enum ResourceCategory
     {
+        Undefined,
         SoftCurrency,
         PremiumCurrency,
         Resource,
@@ -19,6 +20,7 @@ namespace Nefta.Core.Events
     {
         private static readonly Dictionary<ResourceCategory, string> CategoryToString = new Dictionary<ResourceCategory, string>()
         {
+            { ResourceCategory.Undefined, null },
             { ResourceCategory.SoftCurrency, "soft_currency" },
             { ResourceCategory.PremiumCurrency, "premium_currency" },
             { ResourceCategory.Resource, "resource" },
