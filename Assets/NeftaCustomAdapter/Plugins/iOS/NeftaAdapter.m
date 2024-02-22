@@ -15,7 +15,6 @@ extern "C" {
     void EnableLogging(bool enable);
     void * NeftaPlugin_Init(const char *appId);
     void NeftaPlugin_Record(void *instance, const char *event);
-    void NeftaPlugin_SetCustomBatchSize(void *instance, int newBatchSize);
 #ifdef __cplusplus
 }
 #endif
@@ -35,9 +34,4 @@ void * NeftaPlugin_Init(const char *appId)
 void NeftaPlugin_Record(void *instance, const char *event)
 {
     [_plugin RecordWithEvent: [NSString stringWithUTF8String: event]];
-}
-
-void NeftaPlugin_SetCustomBatchSize(void *instance, int newBatchSize)
-{
-    [_plugin SetCustomBatchSize: newBatchSize];
 }

@@ -24,9 +24,6 @@ namespace NeftaCustomAdapter
         [DllImport ("__Internal")]
         private static extern void NeftaPlugin_Record(IntPtr instance, string recordedEvent);
 
-        [DllImport ("__Internal")]
-        private static extern IntPtr NeftaPlugin_SetCustomBatchSize(IntPtr instance, int newBatchSize);
-
         private static IntPtr _plugin;
 #elif UNITY_ANDROID
         private static AndroidJavaObject _plugin;
@@ -65,12 +62,10 @@ namespace NeftaCustomAdapter
         {
             if (hasFocus)
             {
-                Debug.Log("onresume");
                 _plugin.Call("OnResume");
             }
             else
             {
-                Debug.Log("onpause");
                 _plugin.Call("OnPause");
             }
         }
@@ -108,17 +103,6 @@ namespace NeftaCustomAdapter
             NeftaPlugin_Record(_plugin, eventString);
 #elif UNITY_ANDROID
             _plugin.Call("Record", eventString);
-#endif
-        }
-        
-        public static void SetCustomBatchSize(int newBatchSize)
-        {
-#if UNITY_EDITOR
-
-#elif UNITY_IOS
-            NeftaPlugin_SetCustomBatchSize(_plugin, newBatchSize);
-#elif UNITY_ANDROID
-            _plugin.Call("SetCustomBatchSize", newBatchSize);
 #endif
         }
         
