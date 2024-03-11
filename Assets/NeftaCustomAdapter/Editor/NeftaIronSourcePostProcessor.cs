@@ -23,7 +23,7 @@ end";
         {
             if (target == BuildTarget.iOS)
             {
-                const string dependency = "pod 'NeftaISAdapter', :git => 'https://github.com/Nefta-io/NeftaISAdapter.git', :tag => '1.2.3'";
+                const string dependency = "pod 'NeftaISAdapter', :git => 'https://github.com/Nefta-io/NeftaISAdapter.git', tag => '1.2.4'";
                 
                 var path = buildPath + "/Podfile";
                 var text = File.ReadAllText(path);
