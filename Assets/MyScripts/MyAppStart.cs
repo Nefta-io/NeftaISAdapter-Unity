@@ -36,6 +36,8 @@ public class MyAppStart : MonoBehaviour
 		IronSourceEvents.onBannerAdScreenDismissedEvent += BannerAdScreenDismissedEvent;
 		IronSourceEvents.onBannerAdLeftApplicationEvent += BannerAdLeftApplicationEvent;
 
+		Nefta.Adapter.Init();
+		
 		// SDK init
 		Debug.Log ("unity-script: IronSource.Agent.init");
 		IronSource.Agent.init (appKey);

@@ -52,8 +52,11 @@ static dispatch_semaphore_t _semaphore;
                 id<ISAdapterAdDelegate> listener = _listeners[placement._id];
                 if (placement._type == TypesBanner) {
                     dispatch_async(dispatch_get_main_queue(), ^{
+                        placement._isManualPosition = true;
                         [_plugin ShowMainWithId: placement._id];
-                        [((id<ISBannerAdDelegate>)listener) adDidLoadWithView: [_plugin GetViewForPlacement: placement]];
+                        UIView* v = [_plugin GetViewForPlacement: placement show: false];
+                        v.frame = CGRectMake(0, 0, placement._width, placement._height);
+                        [((id<ISBannerAdDelegate>)listener) adDidLoadWithView: v];
                     });
                 } else {
                     [listener adDidLoad];
@@ -111,7 +114,7 @@ static dispatch_semaphore_t _semaphore;
 }
 
 - (NSString *) adapterVersion {
-    return @"1.2.4";
+    return @"1.2.5";
 }
 
 + (void)ApplyRenderer:(UIViewController *)viewController {
