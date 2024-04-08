@@ -7,10 +7,29 @@
 
 #import "ISNeftaCustomAdapter.h"
 
+
+@interface MListener : NSObject
+@property (nonatomic, strong) NSString* placementId;
+@property (nonatomic) int state;
+@property (nonatomic, strong) id<ISAdapterAdDelegate> listener;
+-(instancetype)initWithId:(NSString *)placementId listener:(id<ISAdapterAdDelegate>)listener;
+@end
+@implementation MListener
+-(instancetype)initWithId:(NSString *)placementId listener:(id<ISAdapterAdDelegate>)listener {
+    self = [super init];
+    if (self) {
+        _placementId = placementId;
+        _state = 0;
+        _listener = listener;
+    }
+    return self;
+}
+@end
+
 @implementation ISNeftaCustomAdapter
 
 static NeftaPlugin_iOS *_plugin;
-static NSMutableDictionary<NSString *, id<ISAdapterAdDelegate>> *_listeners;
+static NSMutableArray *_listeners;
 static dispatch_semaphore_t _semaphore;
 
 - (void)setAdapterDebug:(BOOL)adapterDebug {
@@ -40,65 +59,96 @@ static dispatch_semaphore_t _semaphore;
         dispatch_async(dispatch_get_main_queue(), ^{
             _plugin = [NeftaPlugin_iOS InitWithAppId: appId];
             
-            _listeners = [[NSMutableDictionary alloc] init];
+            _listeners = [NSMutableArray array];
             
             _plugin.OnLoadFail = ^(Placement *placement, NSString *error) {
-                id<ISAdapterAdDelegate> listener = _listeners[placement._id];
-                [listener adDidFailToLoadWithErrorType:ISAdapterErrorTypeInternal errorCode:2 errorMessage:error];
-                [_listeners removeObjectForKey: placement._id];
+                for (int i = 0; i < _listeners.count; i++) {
+                    MListener *ml = _listeners[i];
+                    if ([ml.placementId isEqualToString: placement._id] && ml.state == 0) {
+                        [ml.listener adDidFailToLoadWithErrorType:ISAdapterErrorTypeInternal errorCode:2 errorMessage:error];
+                        [_listeners removeObject: ml];
+                        return;
+                    }
+                }
             };
             
             _plugin.OnLoad = ^(Placement *placement) {
-                id<ISAdapterAdDelegate> listener = _listeners[placement._id];
-                if (placement._type == TypesBanner) {
-                    dispatch_async(dispatch_get_main_queue(), ^{
-                        placement._isManualPosition = true;
-                        [_plugin ShowMainWithId: placement._id];
-                        UIView* v = [_plugin GetViewForPlacement: placement show: false];
-                        v.frame = CGRectMake(0, 0, placement._width, placement._height);
-                        [((id<ISBannerAdDelegate>)listener) adDidLoadWithView: v];
-                    });
-                } else {
-                    [listener adDidLoad];
+                for (int i = 0; i < _listeners.count; i++) {
+                    MListener *ml = _listeners[i];
+                    if ([ml.placementId isEqualToString: placement._id] && ml.state == 0) {
+                        ml.state = 1;
+                        if (placement._type == TypesBanner) {
+                            placement._isManualPosition = true;
+                            [_plugin ShowMainWithId: placement._id];
+                            UIView* v = [_plugin GetViewForPlacement: placement show: false];
+                            v.frame = CGRectMake(0, 0, placement._width, placement._height);
+                            [((id<ISBannerAdDelegate>)ml.listener) adDidLoadWithView: v];
+                        } else {
+                            [ml.listener adDidLoad];
+                        }
+                        return;
+                    }
                 }
             };
             
             _plugin.OnShow = ^(Placement *placement, NSInteger width, NSInteger height) {
-                id<ISAdapterAdDelegate> listener = _listeners[placement._id];
-                if (placement._type == TypesBanner) {
-                    id<ISBannerAdDelegate> bannerListener = (id<ISBannerAdDelegate>) listener;
-                    [bannerListener adDidOpen];
-                    [bannerListener adWillPresentScreen];
-                } else {
-                    id<ISAdapterAdInteractionDelegate> interactionListener = (id<ISAdapterAdInteractionDelegate>) listener;
-                    [interactionListener adDidOpen];
-                    [interactionListener adDidShowSucceed];
-                    [interactionListener adDidBecomeVisible];
+                for (int i = 0; i < _listeners.count; i++) {
+                    MListener *ml = _listeners[i];
+                    if ([ml.placementId isEqualToString: placement._id] && ml.state == 0) {
+                        ml.state = 2;
+                        if (placement._type == TypesBanner) {
+                            id<ISBannerAdDelegate> bannerListener = (id<ISBannerAdDelegate>) ml.listener;
+                            [bannerListener adDidOpen];
+                            [bannerListener adWillPresentScreen];
+                        } else {
+                            id<ISAdapterAdInteractionDelegate> interactionListener = (id<ISAdapterAdInteractionDelegate>) ml.listener;
+                            [interactionListener adDidOpen];
+                            [interactionListener adDidShowSucceed];
+                            [interactionListener adDidBecomeVisible];
+                        }
+                        return;
+                    }
                 }
             };
             
             _plugin.OnClick = ^(Placement *placement) {
-                id<ISAdapterAdDelegate> listener = _listeners[placement._id];
-                [listener adDidClick];
+                for (int i = 0; i < _listeners.count; i++) {
+                    MListener *ml = _listeners[i];
+                    if ([ml.placementId isEqualToString: placement._id] && ml.state == 2) {
+                        id<ISAdapterAdDelegate> listener = ml.listener;
+                        [listener adDidClick];
+                        return;
+                    }
+                }
             };
             
             _plugin.OnReward = ^(Placement *placement) {
-                id<ISRewardedVideoAdDelegate> listener = (id<ISRewardedVideoAdDelegate>) _listeners[placement._id];
-                if (listener != nil) {
-                    [listener adRewarded];
+                for (int i = 0; i < _listeners.count; i++) {
+                    MListener *ml = _listeners[i];
+                    if ([ml.placementId isEqualToString: placement._id] && ml.state == 2) {
+                        MListener *ml = _listeners[i];
+                        id<ISRewardedVideoAdDelegate> listener = (id<ISRewardedVideoAdDelegate>) ml.listener;
+                        [listener adRewarded];
+                        return;
+                    }
                 }
             };
             
             _plugin.OnClose = ^(Placement *placement) {
-                id<ISAdapterAdDelegate> listener = _listeners[placement._id];
-                if (placement._type == TypesBanner) {
-                    [((id<ISBannerAdDelegate>)listener) adDidDismissScreen];
-                } else {
-                    id<ISAdapterAdInteractionDelegate> interactionListener = (id<ISAdapterAdInteractionDelegate>) listener;
-                    [interactionListener adDidEnd];
-                    [interactionListener adDidClose];
+                for (int i = 0; i < _listeners.count; i++) {
+                    MListener *ml = _listeners[i];
+                    if ([ml.placementId isEqualToString: placement._id] && ml.state == 2) {
+                        if (placement._type == TypesBanner) {
+                            [((id<ISBannerAdDelegate>)ml.listener) adDidDismissScreen];
+                        } else {
+                            id<ISAdapterAdInteractionDelegate> interactionListener = (id<ISAdapterAdInteractionDelegate>) ml.listener;
+                            [interactionListener adDidEnd];
+                            [interactionListener adDidClose];
+                        }
+                        [_listeners removeObject: ml];
+                        return;
+                    }
                 }
-                [_listeners removeObjectForKey: placement._id];
             };
             
             [_plugin EnableAds: true];
@@ -114,7 +164,7 @@ static dispatch_semaphore_t _semaphore;
 }
 
 - (NSString *) adapterVersion {
-    return @"1.2.6";
+    return @"1.2.7";
 }
 
 + (void)ApplyRenderer:(UIViewController *)viewController {
@@ -123,7 +173,9 @@ static dispatch_semaphore_t _semaphore;
 
 - (void)Load:(NSString *)pId delgate:(id<ISAdapterAdDelegate>)delegate {
     dispatch_semaphore_wait(_semaphore, DISPATCH_TIME_FOREVER);
-    _listeners[pId] = delegate;
+    
+    MListener *listener = [[MListener alloc] initWithId: pId listener: delegate];
+    [_listeners addObject: listener];
     [_plugin LoadWithId: pId];
     dispatch_semaphore_signal(_semaphore);
 }
