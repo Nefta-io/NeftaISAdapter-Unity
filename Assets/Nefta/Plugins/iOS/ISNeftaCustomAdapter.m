@@ -94,7 +94,7 @@ static dispatch_semaphore_t _semaphore;
             _plugin.OnShow = ^(Placement *placement, NSInteger width, NSInteger height) {
                 for (int i = 0; i < _listeners.count; i++) {
                     MListener *ml = _listeners[i];
-                    if ([ml.placementId isEqualToString: placement._id] && ml.state == 0) {
+                    if ([ml.placementId isEqualToString: placement._id] && ml.state == 1) {
                         ml.state = 2;
                         if (placement._type == TypesBanner) {
                             id<ISBannerAdDelegate> bannerListener = (id<ISBannerAdDelegate>) ml.listener;
@@ -164,7 +164,7 @@ static dispatch_semaphore_t _semaphore;
 }
 
 - (NSString *) adapterVersion {
-    return @"1.2.8";
+    return @"1.2.9";
 }
 
 + (void)ApplyRenderer:(UIViewController *)viewController {
