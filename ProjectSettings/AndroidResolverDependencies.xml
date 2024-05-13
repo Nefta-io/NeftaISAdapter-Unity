@@ -1,5 +1,6 @@
 <dependencies>
   <packages>
+    <package>androidx.cardview:cardview:1.0.0</package>
     <package>com.google.android.gms:play-services-ads-identifier:18.0.1</package>
     <package>com.google.android.gms:play-services-basement:18.1.0</package>
     <package>com.ironsource.sdk:mediationsdk:7.8.0</package>
@@ -9,6 +10,7 @@
     <file>Assets/Plugins/Android/androidx.arch.core.core-common-2.0.0.jar</file>
     <file>Assets/Plugins/Android/androidx.arch.core.core-runtime-2.0.0.aar</file>
     <file>Assets/Plugins/Android/androidx.asynclayoutinflater.asynclayoutinflater-1.0.0.aar</file>
+    <file>Assets/Plugins/Android/androidx.cardview.cardview-1.0.0.aar</file>
     <file>Assets/Plugins/Android/androidx.collection.collection-1.0.0.jar</file>
     <file>Assets/Plugins/Android/androidx.coordinatorlayout.coordinatorlayout-1.0.0.aar</file>
     <file>Assets/Plugins/Android/androidx.core.core-1.2.0.aar</file>

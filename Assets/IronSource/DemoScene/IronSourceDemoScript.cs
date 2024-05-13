@@ -1,27 +1,22 @@
 using UnityEngine;
-using System.Collections;
 using System.Collections.Generic;
-using System;
-
+using Nefta.Core.Events;
 
 // Example for IronSource Unity.
 public class IronSourceDemoScript : MonoBehaviour
 {
-
-   
-
     public void Start()
     {
 
 #if UNITY_ANDROID
-        string appKey = "85460dcd";
+        string appKey = "1bb635bc5";
 #elif UNITY_IPHONE
-        string appKey = "8545d445";
+        string appKey = "1c0431145";
 #else
         string appKey = "unexpected_platform";
 #endif
-
-
+        Nefta.Adapter.Init();
+        Nefta.Adapter.Record(new ProgressionEvent() { _source = Source.CoreContent, _status = Status.Complete, _name = "core-42"});
 
         Debug.Log("unity-script: IronSource.Agent.validateIntegration");
         IronSource.Agent.validateIntegration();
