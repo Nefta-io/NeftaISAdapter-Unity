@@ -41,7 +41,9 @@ namespace Nefta.Editor
             }
             
             _error = null;
+#if UNITY_2021_1_OR_NEWER
             GetAndroidVersions();
+#endif
             GetIosVersions();
         }
 
@@ -58,6 +60,7 @@ namespace Nefta.Editor
                 return;
             }
             
+#if UNITY_2021_1_OR_NEWER
             if (_androidAdapterVersion != _iosAdapterVersion)
             {
                 DrawVersion("Nefta IronSource Android Custom Adapter version", _androidAdapterVersion);
@@ -67,6 +70,7 @@ namespace Nefta.Editor
                 DrawVersion("Nefta SDK iOS version", _iosVersion);
             }
             else
+#endif
             {
                 DrawVersion("Nefta IronSource Custom Adapter version", _androidAdapterVersion);
                 DrawVersion("Nefta SDK version", _androidVersion);
@@ -156,6 +160,7 @@ namespace Nefta.Editor
             EditorGUILayout.EndHorizontal();
         }
         
+#if UNITY_2021_1_OR_NEWER
         private void GetAndroidVersions()
         {
             var guids = AssetDatabase.FindAssets("NeftaCustomAdapter-");
@@ -198,6 +203,7 @@ namespace Nefta.Editor
                 }
             }
         }
+#endif
         
         private void GetIosVersions()
         {

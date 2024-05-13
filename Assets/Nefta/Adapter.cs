@@ -4,7 +4,6 @@ using System.Runtime.InteropServices;
 using AOT;
 #endif
 using System.Text;
-using System.Web;
 using Nefta.Core.Events;
 using UnityEngine;
 using UnityEngine.Assertions;
@@ -102,12 +101,12 @@ namespace Nefta
             if (gameEvent._name != null)
             {
                 _eventBuilder.Append("\",\"item_name\":\"");
-                _eventBuilder.Append(HttpUtility.JavaScriptStringEncode(gameEvent._name));
+                _eventBuilder.Append(JavaScriptStringEncode(gameEvent._name));
             }
             if (gameEvent._customString != null)
             {
                 _eventBuilder.Append("\",\"custom_publisher_payload\":\"");
-                _eventBuilder.Append(HttpUtility.JavaScriptStringEncode(gameEvent._customString));
+                _eventBuilder.Append(JavaScriptStringEncode(gameEvent._customString));
             }
             _eventBuilder.Append("\"}");
             var eventString = _eventBuilder.ToString();
@@ -134,6 +133,73 @@ namespace Nefta
             nuid = _plugin.Call<string>("GetNuid", present);
 #endif
             return nuid;
+        }
+        
+        private static string JavaScriptStringEncode(string value)
+        {
+            int len = value.Length;
+            bool needEncode = false;
+            char c;
+            for (int i = 0; i < len; i++)
+            {
+                c = value [i];
+
+                if (c >= 0 && c <= 31 || c == 34 || c == 39 || c == 60 || c == 62 || c == 92)
+                {
+                    needEncode = true;
+                    break;
+                }
+            }
+
+            if (!needEncode)
+            {
+                return value;
+            }
+            
+            var sb = new StringBuilder ();
+            for (int i = 0; i < len; i++)
+            {
+                c = value [i];
+                if (c >= 0 && c <= 7 || c == 11 || c >= 14 && c <= 31 || c == 39 || c == 60 || c == 62)
+                {
+                    sb.AppendFormat ("\\u{0:x4}", (int)c);
+                }
+                else switch ((int)c)
+                {
+                    case 8:
+                        sb.Append ("\\b");
+                        break;
+
+                    case 9:
+                        sb.Append ("\\t");
+                        break;
+
+                    case 10:
+                        sb.Append ("\\n");
+                        break;
+
+                    case 12:
+                        sb.Append ("\\f");
+                        break;
+
+                    case 13:
+                        sb.Append ("\\r");
+                        break;
+
+                    case 34:
+                        sb.Append ("\\\"");
+                        break;
+
+                    case 92:
+                        sb.Append ("\\\\");
+                        break;
+
+                    default:
+                        sb.Append (c);
+                        break;
+                }
+            }
+            return sb.ToString ();
         }
         
 #if UNITY_EDITOR
