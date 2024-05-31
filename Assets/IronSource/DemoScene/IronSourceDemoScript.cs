@@ -16,7 +16,7 @@ public class IronSourceDemoScript : MonoBehaviour
         string appKey = "unexpected_platform";
 #endif
         Nefta.Adapter.Init();
-        Nefta.Adapter.Record(new ProgressionEvent() { _source = Source.CoreContent, _status = Status.Complete, _name = "core-42"});
+        Nefta.Adapter.Record(new ProgressionEvent(Type.Unlock, Status.Complete) { _source = Source.CoreContent, _name = "core-42"});
 
         Debug.Log("unity-script: IronSource.Agent.validateIntegration");
         IronSource.Agent.validateIntegration();

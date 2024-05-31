@@ -104,7 +104,7 @@ namespace Nefta.Core.Events
             { Source.Boss, "boss" },
             { Source.Social, "social" },
             { Source.SpecialEvent, "special_event" },
-            { Source.Other, "other" },
+            { Source.Other, "other" }
         };
         
         /// <summary>
@@ -127,5 +127,11 @@ namespace Nefta.Core.Events
         internal override string _category => ProgressionToString[_type][_status];
         
         internal override string _subCategory => ProgressionSourceToString[_source];
+        
+        public ProgressionEvent(Type type, Status status)
+        {
+            _type = type;
+            _status = status;
+        }
     }
 }
