@@ -314,7 +314,6 @@ SWIFT_CLASS("_TtC8NeftaSDK11BidResponse")
 @property (nonatomic, copy) NSString * _Nullable _adMarkup;
 @property (nonatomic) enum AdMarkupTypes _adMarkupType;
 @property (nonatomic, copy) NSString * _Nullable _campaignId;
-@property (nonatomic) BOOL _creativeQualityCheck;
 @property (nonatomic, copy) NSString * _Nullable _trackingClickUrl;
 @property (nonatomic, copy) NSString * _Nullable _redirectClickUrl;
 - (nonnull instancetype)init OBJC_DESIGNATED_INITIALIZER;
@@ -433,9 +432,8 @@ SWIFT_CLASS_PROPERTY(@property (nonatomic, class, readonly, copy) NSString * _No
 @property (nonatomic, copy) void (^ _Nullable OnBid)(Placement * _Nonnull, BidResponse * _Nullable);
 @property (nonatomic, copy) void (^ _Nullable OnLoadStart)(Placement * _Nonnull);
 @property (nonatomic, copy) void (^ _Nullable OnLoadFail)(Placement * _Nonnull, NSString * _Nullable);
-@property (nonatomic, copy) void (^ _Nullable OnLoad)(Placement * _Nonnull);
-@property (nonatomic, copy) void (^ _Nullable OnShow)(Placement * _Nonnull, NSInteger, NSInteger);
-@property (nonatomic, copy) void (^ _Nullable OnBannerChange)(Placement * _Nonnull, NSInteger, NSInteger);
+@property (nonatomic, copy) void (^ _Nullable OnLoad)(Placement * _Nonnull, NSInteger, NSInteger);
+@property (nonatomic, copy) void (^ _Nullable OnShow)(Placement * _Nonnull);
 @property (nonatomic, copy) void (^ _Nullable OnClick)(Placement * _Nonnull);
 @property (nonatomic, copy) void (^ _Nullable OnClose)(Placement * _Nonnull);
 @property (nonatomic, copy) void (^ _Nullable OnReward)(Placement * _Nonnull);
@@ -446,9 +444,8 @@ SWIFT_CLASS_PROPERTY(@property (nonatomic, class, copy) void (^ _Nullable OnLog)
 @property (nonatomic, copy) void (^ _Nullable IOnBid)(NSString * _Nonnull, float);
 @property (nonatomic, copy) void (^ _Nullable IOnLoadStart)(NSString * _Nonnull);
 @property (nonatomic, copy) void (^ _Nullable IOnLoadFail)(NSString * _Nonnull, NSString * _Nullable);
-@property (nonatomic, copy) void (^ _Nullable IOnLoad)(NSString * _Nonnull);
-@property (nonatomic, copy) void (^ _Nullable IOnShow)(NSString * _Nonnull, NSInteger, NSInteger);
-@property (nonatomic, copy) void (^ _Nullable IOnBannerChange)(NSString * _Nonnull, NSInteger, NSInteger);
+@property (nonatomic, copy) void (^ _Nullable IOnLoad)(NSString * _Nonnull, NSInteger, NSInteger);
+@property (nonatomic, copy) void (^ _Nullable IOnShow)(NSString * _Nonnull);
 @property (nonatomic, copy) void (^ _Nullable IOnClick)(NSString * _Nonnull);
 @property (nonatomic, copy) void (^ _Nullable IOnClose)(NSString * _Nonnull);
 @property (nonatomic, copy) void (^ _Nullable IOnReward)(NSString * _Nonnull);
@@ -535,16 +532,16 @@ typedef SWIFT_ENUM(NSInteger, Modes, open) {
 @class NSCoder;
 @class WKWebView;
 @class WKNavigation;
+@class WKNavigationAction;
 
 SWIFT_CLASS("_TtC8NeftaSDK13WebController")
 @interface WebController : UIView <WKNavigationDelegate>
 - (nullable instancetype)initWithCoder:(NSCoder * _Nonnull)aDecoder SWIFT_UNAVAILABLE;
-- (void)layoutSubviews;
 - (void)didMoveToSuperview;
 - (void)webView:(WKWebView * _Nonnull)webView didFailNavigation:(WKNavigation * _Null_unspecified)navigation withError:(NSError * _Nonnull)error;
 - (void)webView:(WKWebView * _Nonnull)webView didFailProvisionalNavigation:(WKNavigation * _Null_unspecified)navigation withError:(NSError * _Nonnull)error;
 - (void)webView:(WKWebView * _Nonnull)webView didFinishNavigation:(WKNavigation * _Null_unspecified)navigation;
-- (void)observeValueForKeyPath:(NSString * _Nullable)keyPath ofObject:(id _Nullable)object change:(NSDictionary<NSKeyValueChangeKey, id> * _Nullable)change context:(void * _Nullable)context;
+- (void)webView:(WKWebView * _Nonnull)webView decidePolicyForNavigationAction:(WKNavigationAction * _Nonnull)navigationAction decisionHandler:(void (^ _Nonnull)(WKNavigationActionPolicy))decisionHandler;
 - (nonnull instancetype)initWithFrame:(CGRect)frame SWIFT_UNAVAILABLE;
 @end
 
