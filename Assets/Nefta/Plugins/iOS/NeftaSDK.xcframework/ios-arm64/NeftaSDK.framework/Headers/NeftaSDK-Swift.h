@@ -303,28 +303,13 @@ typedef unsigned int swift_uint4  __attribute__((__ext_vector_type__(4)));
 
 #if defined(__OBJC__)
 @class NSString;
-enum AdMarkupTypes : NSInteger;
 
 SWIFT_CLASS("_TtC8NeftaSDK11BidResponse")
 @interface BidResponse : NSObject
 @property (nonatomic, copy) NSString * _Null_unspecified _id;
-@property (nonatomic, copy) NSString * _Nullable _impressionId;
 @property (nonatomic) float _price;
-@property (nonatomic, copy) NSString * _Nullable _winNoticeUrl;
-@property (nonatomic, copy) NSString * _Nullable _adMarkup;
-@property (nonatomic) enum AdMarkupTypes _adMarkupType;
-@property (nonatomic, copy) NSString * _Nullable _campaignId;
-@property (nonatomic, copy) NSString * _Nullable _trackingClickUrl;
-@property (nonatomic, copy) NSString * _Nullable _redirectClickUrl;
 - (nonnull instancetype)init OBJC_DESIGNATED_INITIALIZER;
 @end
-
-typedef SWIFT_ENUM(NSInteger, AdMarkupTypes, open) {
-  AdMarkupTypesVastXml = 0,
-  AdMarkupTypesHtmlRaw = 1,
-  AdMarkupTypesHtmlLink = 2,
-  AdMarkupTypesImageLink = 3,
-};
 
 enum ProgressionStatus : NSInteger;
 enum ProgressionType : NSInteger;
@@ -419,7 +404,7 @@ typedef SWIFT_ENUM(NSInteger, SessionCategory, open) {
 };
 
 @class Placement;
-enum Types : NSInteger;
+enum Position : NSInteger;
 enum Modes : NSInteger;
 @class UIView;
 
@@ -453,18 +438,14 @@ SWIFT_CLASS_PROPERTY(@property (nonatomic, class, copy) void (^ _Nullable OnLog)
 + (nonnull instancetype)new SWIFT_UNAVAILABLE_MSG("-init is unavailable");
 - (void)RecordWithEvent:(NSString * _Nonnull)event;
 - (void)EnableAds:(BOOL)enable;
-- (void)EnableBannerWithEnable:(BOOL)enable;
 - (void)EnableBannerWithId:(NSString * _Nonnull)id enable:(BOOL)enable;
 - (void)SetPublisherUserIdWithId:(NSString * _Nonnull)id;
-- (void)SetPlacementModeWithType:(enum Types)type mode:(enum Modes)mode;
+- (void)SetPlacementPositionWithId:(NSString * _Nonnull)id position:(enum Position)position;
 - (void)SetPlacementModeWithId:(NSString * _Nonnull)id mode:(enum Modes)mode;
-- (void)BidWithType:(enum Types)type;
+- (void)SetCustomParameterWithId:(NSString * _Nonnull)id key:(NSString * _Nonnull)key value:(id _Nonnull)value;
 - (void)BidWithId:(NSString * _Nonnull)id;
-- (void)LoadWithType:(enum Types)type;
 - (void)LoadWithId:(NSString * _Nonnull)id;
-- (BOOL)IsReadyWithType:(enum Types)type SWIFT_WARN_UNUSED_RESULT;
 - (BOOL)IsReadyWithId:(NSString * _Nonnull)id SWIFT_WARN_UNUSED_RESULT;
-- (void)ShowWithType:(enum Types)type;
 - (void)ShowWithId:(NSString * _Nonnull)id;
 - (void)ShowMainWithId:(NSString * _Nonnull)id;
 - (void)Close;
@@ -489,12 +470,14 @@ SWIFT_CLASS_PROPERTY(@property (nonatomic, class, strong) NeftaPlugin_iOS * _Nul
 - (UIView * _Nullable)GetViewForPlacement:(Placement * _Nonnull)placement show:(BOOL)show SWIFT_WARN_UNUSED_RESULT;
 @end
 
+enum Types : NSInteger;
 
 SWIFT_CLASS("_TtC8NeftaSDK9Placement")
 @interface Placement : NSObject
 @property (nonatomic, copy) NSString * _Nonnull _id;
 @property (nonatomic) NSInteger _width;
 @property (nonatomic) NSInteger _height;
+@property (nonatomic) enum Position _position;
 @property (nonatomic) enum Types _type;
 @property (nonatomic, strong) BidResponse * _Nullable _availableBid;
 @property (nonatomic, strong) BidResponse * _Nullable _bufferBid;
@@ -513,6 +496,11 @@ SWIFT_CLASS("_TtC8NeftaSDK9Placement")
 - (nonnull instancetype)init SWIFT_UNAVAILABLE;
 + (nonnull instancetype)new SWIFT_UNAVAILABLE_MSG("-init is unavailable");
 @end
+
+typedef SWIFT_ENUM(NSInteger, Position, open) {
+  PositionTop = 0,
+  PositionBottom = 1,
+};
 
 typedef SWIFT_ENUM(NSInteger, Types, open) {
   TypesBanner = 0,

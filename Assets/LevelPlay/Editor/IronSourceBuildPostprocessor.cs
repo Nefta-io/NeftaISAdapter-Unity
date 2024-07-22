@@ -56,22 +56,6 @@ namespace IronSource.Editor
 #else
             targetId = project.TargetGuidByName(PBXProject.GetUnityTargetName());
 #endif
-			// Required System Frameworks
-			project.AddFrameworkToProject (targetId, "AdSupport.framework", false);
-			project.AddFrameworkToProject (targetId, "AudioToolbox.framework", false);
-			project.AddFrameworkToProject (targetId, "AVFoundation.framework", false);
-			project.AddFrameworkToProject (targetId, "CoreGraphics.framework", false);
-			project.AddFrameworkToProject (targetId, "CoreMedia.framework", false);
-			project.AddFrameworkToProject (targetId, "CoreTelephony.framework", false);
-			project.AddFrameworkToProject (targetId, "CoreVideo.framework", false);
-			project.AddFrameworkToProject (targetId, "CFNetwork.framework", false);
-			project.AddFrameworkToProject (targetId, "Foundation.framework", false);
-			project.AddFrameworkToProject (targetId, "MobileCoreServices.framework", false);
-			project.AddFrameworkToProject (targetId, "QuartzCore.framework", false);
-			project.AddFrameworkToProject (targetId, "Security.framework", false);
-			project.AddFrameworkToProject (targetId, "StoreKit.framework", false);
-			project.AddFrameworkToProject (targetId, "SystemConfiguration.framework", false);
-			project.AddFrameworkToProject (targetId, "WebKit.framework", false);
 			project.AddFileToBuild (targetId, project.AddFile ("usr/lib/libz.tbd", "Frameworks/libz.tbd", PBXSourceTree.Sdk));
 
 			// Custom Link Flag
