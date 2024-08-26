@@ -236,18 +236,7 @@ namespace Nefta.Editor
                 }
             }
             
-            guids = AssetDatabase.FindAssets("NeftaSDK.xcframework");
-            if (guids.Length == 0)
-            {
-                _error = "NeftaPlugin_iOS not found in project";
-                return;
-            }
-            if (guids.Length > 1)
-            {
-                _error = "Multiple instances of NeftaPlugin_iOS found in project";
-                return;
-            }
-            var pluginPath = Path.GetDirectoryName(AssetDatabase.GUIDToAssetPath(guids[0]));
+            var pluginPath = Path.GetDirectoryName(wrapperPath);
             XmlDocument xmlDoc = new XmlDocument();
             xmlDoc.Load(pluginPath + "/NeftaSDK.xcframework/Info.plist");
             var dict = xmlDoc.ChildNodes[2].ChildNodes[0];
