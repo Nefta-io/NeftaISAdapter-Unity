@@ -1,4 +1,4 @@
-using Nefta.Core.Events;
+using Nefta.Events;
 using UnityEngine;
 
 namespace AdDemo
@@ -20,8 +20,6 @@ namespace AdDemo
         private void Awake()
         {
             Nefta.Adapter.Init();
-            Nefta.Adapter.Record(new ProgressionEvent(Type.Unlock, Status.Complete) { _source = Source.CoreContent, _name = "core-42"});
-
             
             Debug.Log("unity-script: IronSource.Agent.validateIntegration");
             IronSource.Agent.validateIntegration();

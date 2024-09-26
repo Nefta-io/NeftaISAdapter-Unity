@@ -1,3 +1,5 @@
+using Nefta;
+using Nefta.Events;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -28,6 +30,11 @@ namespace AdDemo
         
         private void OnLoadClick()
         {
+            var category = (ResourceCategory) Random.Range(0, 9);
+            var method = (SpendMethod)Random.Range(0, 8);
+            var value = Random.Range(0, 101);
+            Adapter.Record(new SpendEvent(category) { _method = method, _name = $"spend_{category} {method} {value}", _value = value });
+            
             SetStatus("Loading rewarded...");
             IronSource.Agent.loadRewardedVideo();
         }
