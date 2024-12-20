@@ -1,16 +1,17 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
+using System.Linq;
 using System.Xml;
 using UnityEditor;
+using UnityEditor.Callbacks;
 using UnityEngine;
 
 namespace Nefta.Editor
 {
-    [CustomEditor(typeof(NeftaConfiguration), false)]
-    public class NeftaConfigurationInspector : UnityEditor.Editor
+    public class NeftaWindow : EditorWindow
     {
-        private NeftaConfiguration _configuration;
         private bool _isLoggingEnabled;
         
         private string _error;
@@ -19,24 +20,64 @@ namespace Nefta.Editor
         private string _iosAdapterVersion;
         private string _iosVersion;
         
-        private static PluginImporter GetImporter(bool debug)
+        private static PluginImporter _debugPluginImporter;
+        private static PluginImporter _releasePluginImporter;
+        
+        [MenuItem("Window/Nefta", false, 200)]
+        public static void ShowWindow()
         {
-            var guid = AssetDatabase.FindAssets(debug ? "NeftaCustomAdapter-debug" : "NeftaCustomAdapter-release")[0];
-            var path = AssetDatabase.GUIDToAssetPath(guid);
-            return (PluginImporter) AssetImporter.GetAtPath(path);
+            GetWindow(typeof(NeftaWindow), false, "Nefta");
+        }
+        
+        [PostProcessBuild(0)]
+        public static void NeftaPostProcessPlist(BuildTarget buildTarget, string path)
+        {
+            if (buildTarget == BuildTarget.iOS)
+            {
+                var plistPath = Path.Combine(path, "Info.plist");
+                var plist = new UnityEditor.iOS.Xcode.PlistDocument();
+                plist.ReadFromFile(plistPath);
+
+                plist.root.values.TryGetValue("SKAdNetworkItems", out var skAdNetworkItems);
+                var existingSkAdNetworkIds = new HashSet<string>();
+
+                if (skAdNetworkItems != null && skAdNetworkItems.GetType() == typeof(UnityEditor.iOS.Xcode.PlistElementArray))
+                {
+                    var plistElementDictionaries = skAdNetworkItems.AsArray().values
+                        .Where(plistElement => plistElement.GetType() == typeof(UnityEditor.iOS.Xcode.PlistElementDict));
+                    foreach (var plistElement in plistElementDictionaries)
+                    {
+                        UnityEditor.iOS.Xcode.PlistElement existingId;
+                        plistElement.AsDict().values.TryGetValue("SKAdNetworkIdentifier", out existingId);
+                        if (existingId == null || existingId.GetType() != typeof(UnityEditor.iOS.Xcode.PlistElementString)
+                                               || string.IsNullOrEmpty(existingId.AsString())) continue;
+
+                        existingSkAdNetworkIds.Add(existingId.AsString());
+                    }
+                }
+                else
+                {
+                    skAdNetworkItems = plist.root.CreateArray("SKAdNetworkItems");
+                }
+
+                const string neftaSkAdNetworkId = "2lj985962l.adattributionkit";
+                if (!existingSkAdNetworkIds.Contains(neftaSkAdNetworkId))
+                {
+                    var skAdNetworkItemDict = skAdNetworkItems.AsArray().AddDict();
+                    skAdNetworkItemDict.SetString("SKAdNetworkIdentifier", neftaSkAdNetworkId);
+                }
+
+                plist.WriteToFile(plistPath);
+            }
         }
         
         public void OnEnable()
         {
-            _configuration = (NeftaConfiguration)target;
-            
-            var importer = GetImporter(true);
-            var isDebugPluginEnabled = importer.GetCompatibleWithPlatform(BuildTarget.Android);
-            if (isDebugPluginEnabled != _configuration._isLoggingEnabled)
+            TryGetPluginImporters();
+
+            if (_debugPluginImporter != null)
             {
-                _configuration._isLoggingEnabled = isDebugPluginEnabled;
-                EditorUtility.SetDirty(_configuration);
-                AssetDatabase.SaveAssetIfDirty(_configuration);
+                _isLoggingEnabled = _debugPluginImporter.GetCompatibleWithPlatform(BuildTarget.Android);
             }
             
             _error = null;
@@ -46,12 +87,7 @@ namespace Nefta.Editor
             GetIosVersions();
         }
 
-        public void OnDisable()
-        {
-            _configuration = null;
-        }
-        
-        public override void OnInspectorGUI()
+        private void OnGUI()
         {
             if (_error != null)
             {
@@ -76,55 +112,22 @@ namespace Nefta.Editor
             }
             EditorGUILayout.Space(5);
             
-            base.OnInspectorGUI();
-            if (_isLoggingEnabled != _configuration._isLoggingEnabled)
+            if (_debugPluginImporter == null || _releasePluginImporter == null)
             {
-                _isLoggingEnabled = _configuration._isLoggingEnabled;
-                
-                var importer = GetImporter(true);
-                importer.SetCompatibleWithPlatform(BuildTarget.Android, _isLoggingEnabled);
-                importer.SaveAndReimport();
-                
-                importer = GetImporter(false);
-                importer.SetCompatibleWithPlatform(BuildTarget.Android, !_isLoggingEnabled);
-                importer.SaveAndReimport();
+                EditorGUILayout.HelpBox("This getting Android SDKs", MessageType.Error);
             }
-        }
-        
-        private static NeftaConfiguration GetNeftaConfiguration()
-        {
-            NeftaConfiguration configuration = null;
-            
-            string[] guids = AssetDatabase.FindAssets("t:NeftaConfiguration");
-            if (guids.Length > 0)
+            else
             {
-                var path = AssetDatabase.GUIDToAssetPath(guids[0]);
-                configuration = AssetDatabase.LoadAssetAtPath<NeftaConfiguration>(path);
-            }
-
-            return configuration;
-        }
-        
-        [MenuItem("Ads Mediation/Select Nefta Configuration", false, int.MaxValue)]
-        private static void SelectNeftaConfiguration()
-        {
-            var configuration = GetNeftaConfiguration();
-            if (configuration == null)
-            {
-                configuration = CreateInstance<NeftaConfiguration>();
-                
-                var directory = "Assets/Resources";
-                var assetPath = $"{directory}/{NeftaConfiguration.FileName}.asset";
-                if (!Directory.Exists(directory))
+                EditorGUILayout.BeginHorizontal();
+                EditorGUILayout.LabelField("Android: Use debug libs and logging:");
+                var isLoggingEnabled = EditorGUILayout.Toggle(_isLoggingEnabled);
+                EditorGUILayout.EndHorizontal();
+                if (isLoggingEnabled != _isLoggingEnabled)
                 {
-                    Directory.CreateDirectory(directory);
+                    _isLoggingEnabled = isLoggingEnabled;
+                    TogglePlugins(_isLoggingEnabled);
                 }
-                AssetDatabase.CreateAsset(configuration, assetPath);
-                AssetDatabase.SaveAssets();
-                AssetDatabase.Refresh();
             }
-            Selection.objects = new UnityEngine.Object[] { configuration };
-            EditorUtility.FocusProjectWindow();
         }
         
         [MenuItem("Ads Mediation/Export Nefta Custom Adapter SDK", false, int.MaxValue)]
@@ -133,13 +136,12 @@ namespace Nefta.Editor
             var packageName = $"NeftaIS_SDK_{Application.version}.unitypackage";
             var assetPaths = new string[] { "Assets/Nefta" };
             
-            var importer = GetImporter(true);
-            importer.SetCompatibleWithPlatform(BuildTarget.Android, true);
-            importer.SaveAndReimport();
+            TryGetPluginImporters();
+            _debugPluginImporter.SetCompatibleWithPlatform(BuildTarget.Android, true);
+            _debugPluginImporter.SaveAndReimport();
             
-            importer = GetImporter(false);
-            importer.SetCompatibleWithPlatform(BuildTarget.Android, false);
-            importer.SaveAndReimport();
+            _releasePluginImporter.SetCompatibleWithPlatform(BuildTarget.Android, false);
+            _releasePluginImporter.SaveAndReimport();
             
             try
             {
@@ -150,6 +152,26 @@ namespace Nefta.Editor
             {
                 Debug.LogError($"Error exporting {packageName}: {e.Message}");   
             }
+        }
+        
+        public static void TryGetPluginImporters()
+        {
+            var guid = AssetDatabase.FindAssets("NeftaCustomAdapter-debug")[0];
+            var path = AssetDatabase.GUIDToAssetPath(guid);
+            _debugPluginImporter = (PluginImporter) AssetImporter.GetAtPath(path);
+
+            guid = AssetDatabase.FindAssets("NeftaCustomAdapter-release")[0];
+            path = AssetDatabase.GUIDToAssetPath(guid);
+            _releasePluginImporter = (PluginImporter) AssetImporter.GetAtPath(path);
+        }
+
+        public static void TogglePlugins(bool enable)
+        {
+            _debugPluginImporter.SetCompatibleWithPlatform(BuildTarget.Android, enable);
+            _debugPluginImporter.SaveAndReimport();
+                    
+            _releasePluginImporter.SetCompatibleWithPlatform(BuildTarget.Android, !enable);
+            _releasePluginImporter.SaveAndReimport();
         }
         
         private static void DrawVersion(string label, string version)
