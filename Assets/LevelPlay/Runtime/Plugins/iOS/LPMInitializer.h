@@ -13,5 +13,8 @@
 @interface LPMInitializer : NSObject
 + (instancetype)sharedInstance;
 - (void)LPMInitialize:(NSString *)appKey userId:(NSString *)userId adFormats:(NSArray *)adFormats;
+- (void)setPluginData:(NSString *)pluginType pluginVersion:(NSString *)pluginVersion pluginFrameworkVersion:(NSString *)pluginFrameworkVersion;
+- (void)LPMSetPauseGame:(BOOL) pauseGame;
+- (BOOL)isUnityPauseGame;
 @end
 

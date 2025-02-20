@@ -1,9 +1,10 @@
-#if UNITY_IOS
+#if UNITY_IOS && !UNITY_EDITOR
 using System;
 using System.Runtime.InteropServices;
 
 namespace com.unity3d.mediation
 {
+    [Obsolete("This class will be deprecated in version 9.0.0. Please use ILevelPlayBannerAd instead.")]
     public class iOSBannerAd : IosNativeObject, IPlatformBannerAd
     {
         public event EventHandler<LevelPlayAdInfo> OnAdLoaded;
@@ -31,7 +32,7 @@ namespace com.unity3d.mediation
             PlacementName = placementName;
             DisplayOnLoad = displayOnLoad;
 
-            NativePtr = BannerAdCreate(adUnitId, placementName, size.Description, size.Width, size.Height);
+            NativePtr = BannerAdCreate(adUnitId, placementName, size.Description, size.Width, size.Height, size.CustomWidth);
             if (_mBannerAdListener == null)
             {
                 _mBannerAdListener = new IosBannerAdListener(this);
@@ -59,7 +60,9 @@ namespace com.unity3d.mediation
             if (DisplayOnLoad)
             {
                 ShowAd();
-            } else {
+            }
+            else
+            {
                 HideAd();
             }
         }
@@ -70,7 +73,6 @@ namespace com.unity3d.mediation
             {
                 BannerAdDestroy(NativePtr);
                 NativePtr = IntPtr.Zero;
-
             }
             base.Dispose();
         }
@@ -85,6 +87,7 @@ namespace com.unity3d.mediation
         {
             BannerAdViewShow(NativePtr);
         }
+
         public void HideAd()
         {
             BannerAdViewHide(NativePtr);
@@ -133,7 +136,7 @@ namespace com.unity3d.mediation
         }
 
         [DllImport("__Internal", EntryPoint = "LPMBannerAdViewCreate")]
-        static extern IntPtr BannerAdCreate(string adUnitId, string placementName, string description, int width, int height);
+        static extern IntPtr BannerAdCreate(string adUnitId, string placementName, string description, int width, int height, int customWidth);
 
         [DllImport("__Internal", EntryPoint = "LPMBannerAdViewSetDelegate")]
         static extern void BannerAdSetDelegate(IntPtr bannerAdView, IntPtr bannerAdListener);
@@ -159,7 +162,6 @@ namespace com.unity3d.mediation
 
         [DllImport("__Internal", EntryPoint = "LPMBannerAdViewResumeAutoRefresh")]
         static extern void BannerAdResumeAutoRefresh(IntPtr bannerAdView);
-
     }
 }
 #endif

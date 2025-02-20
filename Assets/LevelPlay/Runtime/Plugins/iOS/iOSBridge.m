@@ -20,16 +20,6 @@
 #define BANNER_POSITION_TOP 1
 #define BANNER_POSITION_BOTTOM 2
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-    void UnityPause(int pause);
-    extern void UnitySendMessage( const char *className, const char *methodName, const char *param );
-    
-#ifdef __cplusplus
-}
-#endif
-
 @interface iOSBridge ()
 {
     ISBannerView* _bannerView;
@@ -370,11 +360,22 @@ char *const IRONSOURCE_BANNER_EVENTS = "IronSourceBannerEvents";
         // Handle the new Adaptive Banner
         if (isAdaptive) {
             size.adaptive = isAdaptive;
-            ISContainerParams *params = [[ISContainerParams alloc] initWithWidth:containerWidth height:containerHeight];
+            
+            float widthx = containerWidth;
+            float heightx = containerHeight;
+            
+            if (widthx <= 0) {
+                widthx = [self getDeviceScreenWidth];
+            }
+            if (heightx <= 0) {
+                heightx = [self getMaximalAdaptiveHeightWithWidth:widthx];
+            }
+            
+            ISContainerParams *params = [[ISContainerParams alloc] initWithWidth:widthx height:heightx];
             [size setContainerParams:params];
             
         }
-       
+        
         _bannerViewController = [UIApplication sharedApplication].keyWindow.rootViewController;
         [IronSource loadBannerWithViewController:_bannerViewController size:size placement:placement];
     }
@@ -481,7 +482,9 @@ char *const IRONSOURCE_BANNER_EVENTS = "IronSourceBannerEvents";
 
 - (void)orientationChanged:(NSNotification *)notification {
     _bannerViewController = [UIApplication sharedApplication].keyWindow.rootViewController;
-    [self centerBanner];
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        [self centerBanner];
+    });
 }
 
 #pragma mark Banner Level Play Delegate
@@ -600,15 +603,15 @@ char *const IRONSOURCE_BANNER_EVENTS = "IronSourceBannerEvents";
 }
 
 - (NSString *)getJsonFromObj:(id)obj {
-        NSError *error;
-        NSData *jsonData = [NSJSONSerialization dataWithJSONObject:obj options:0 error:&error];
-        if (!jsonData) {
-            NSLog(@"Got an error: %@", error);
-            return @"";
-        } else {
-            NSString *jsonString = [[NSString alloc] initWithData:jsonData encoding:NSUTF8StringEncoding];
-            return jsonString;
-        }
+    NSError *error;
+    NSData *jsonData = [NSJSONSerialization dataWithJSONObject:obj options:0 error:&error];
+    if (!jsonData) {
+        NSLog(@"Got an error: %@", error);
+        return @"";
+    } else {
+        NSString *jsonString = [[NSString alloc] initWithData:jsonData encoding:NSUTF8StringEncoding];
+        return jsonString;
+    }
 }
 
 - (NSString *) getAdInfoData:(ISAdInfo *) adinfo{
@@ -623,9 +626,9 @@ char *const IRONSOURCE_BANNER_EVENTS = "IronSourceBannerEvents";
 
 - (void)impressionDataDidSucceed:(ISImpressionData *)impressionData {
     if (backgroundCallback!=nil) {
-             const char * serializedParameters = [self getJsonFromObj:[impressionData all_data]].UTF8String;
-             backgroundCallback(serializedParameters);
-         }
+        const char * serializedParameters = [self getJsonFromObj:[impressionData all_data]].UTF8String;
+        backgroundCallback(serializedParameters);
+    }
     UnitySendMessage(IRONSOURCE_EVENTS, "onImpressionSuccess", [self getJsonFromObj:[impressionData all_data]].UTF8String);
     
 }
@@ -705,8 +708,8 @@ extern "C" {
     };
     
     void RegisterCallback(ISUnityBackgroundCallback func){
-            backgroundCallback=func;
-        }
+        backgroundCallback=func;
+    }
     void RegisterPauseGameFunction(bool func){
         pauseGame=func;
     }
@@ -853,7 +856,7 @@ extern "C" {
     bool CFIsInterstitialPlacementCapped(char *placementName){
         return [[iOSBridge start] isInterstitialPlacementCapped:GetStringParam(placementName)];
     }
-
+    
 #pragma mark Banner API
     
     void CFLoadBanner(char* description, int width, int height, int position, char* placementName, bool isAdaptive,float containerWidth,float containerHeight){
@@ -891,7 +894,7 @@ extern "C" {
     }
     
 #pragma mark Set Waterfall Configuration API
-
+    
     void LPPSetWaterfallConfiguration(LPPWaterfallConfigurationData configurationParams, enum LPPAdFormat adFormat) {
         ISWaterfallConfigurationBuilder *builder = [ISWaterfallConfiguration builder];
         const double defaultValue = 0.00;
@@ -900,12 +903,12 @@ extern "C" {
             NSNumber *floorValue = [NSNumber numberWithDouble:configurationParams.floor];
             [builder setFloor:floorValue];
         }
-    
+        
         if (configurationParams.ceiling != defaultValue) {
             NSNumber *ceilingValue = [NSNumber numberWithDouble:configurationParams.ceiling];
             [builder setCeiling:ceilingValue];
         }
-    
+        
         ISWaterfallConfiguration *waterfallConfig = [builder build];
         ISAdUnit *adUnit;
         switch (adFormat) {
@@ -921,10 +924,10 @@ extern "C" {
             default:
                 return;
         }
-    
+        
         [IronSource setWaterfallConfiguration:waterfallConfig forAdUnit:adUnit];
     }
-
+    
 #pragma mark ConsentView API
     
     void CFLoadConsentViewWithType (char* consentViewType){
@@ -949,7 +952,7 @@ extern "C" {
         }
         return [[iOSBridge start] setAdRevenueData:GetStringParam(datasource)impressionData:data];
     }
-
+    
 #pragma mark TestSuite API
     void CFLaunchTestSuite(){
         [[iOSBridge start] launchTestSuite];

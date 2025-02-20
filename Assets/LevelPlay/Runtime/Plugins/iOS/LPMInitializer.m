@@ -6,14 +6,12 @@
 //
 
 #import "LPMInitializer.h"
-
-// Converts C style string to NSString
-#define GetStringParam( _x_ ) ( _x_ != NULL ) ? [NSString stringWithUTF8String:_x_] : [NSString stringWithUTF8String:""]
+#import "LPMUtilities.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-    
+    static bool isUnityPauseGame = false;
     void UnitySendMessage(const char* obj, const char* method, const char* msg);
     
     void LPMInitialize(const char *appKey, const char *userId, const char **adFormats) {
@@ -21,18 +19,30 @@ extern "C" {
         const char **current = adFormats;
         if(current != NULL){
             while (*current != NULL) {
-                NSString *format = GetStringParam(*current);
+                NSString *format = [LPMUtilities getStringFromCString:*current];
                 if (format) {
                     [formatsArray addObject:format];
                 }
                 current++;
             }
         }
-        [[LPMInitializer sharedInstance] LPMInitialize:GetStringParam(appKey)
-                                                userId:GetStringParam(userId)
+        [[LPMInitializer sharedInstance] LPMInitialize:[LPMUtilities getStringFromCString:appKey]
+                                                userId:[LPMUtilities getStringFromCString:userId]
                                              adFormats:formatsArray];
     }
     
+    void setPluginData(const char *pluginType, const char *pluginVersion, const char *pluginFrameworkVersion) {
+        NSString *type = [LPMUtilities getStringFromCString:pluginType];
+        NSString *version = [LPMUtilities getStringFromCString:pluginVersion];
+        NSString *frameworkVersion = [LPMUtilities getStringFromCString:pluginFrameworkVersion];
+        
+        // Use the sharedInstance to set plugin data
+        [[LPMInitializer sharedInstance] setPluginData:type pluginVersion:version pluginFrameworkVersion:frameworkVersion];
+    }
+    
+    void LPMSetPauseGame(BOOL pause) {
+        isUnityPauseGame = pause;
+    }
     
 #ifdef __cplusplus
 }
@@ -65,23 +75,35 @@ extern "C" {
     }];
 }
 
+- (void)setPluginData:(NSString *)pluginType pluginVersion:(NSString *)pluginVersion pluginFrameworkVersion:(NSString *)pluginFrameworkVersion {
+    if (pluginType) {
+        [ISConfigurations getConfigurations].plugin = pluginType;
+    }
+    
+    if (pluginVersion) {
+        [ISConfigurations getConfigurations].pluginVersion = pluginVersion;
+    }
+    
+    if (pluginFrameworkVersion) {
+        [ISConfigurations getConfigurations].pluginFrameworkVersion = pluginFrameworkVersion;
+    }
+    NSLog(@"PLUGIN IS: %@ %@ %@", [ISConfigurations getConfigurations].plugin, [ISConfigurations getConfigurations].pluginVersion, [ISConfigurations getConfigurations].pluginFrameworkVersion);
+}
+
+- (void)LPMSetPauseGame:(BOOL)pause {
+    isUnityPauseGame = pause;
+}
+
+- (BOOL)isUnityPauseGame {
+    return isUnityPauseGame;
+}
+
 - (NSString *)serializeConfigToJSON:(LPMConfiguration *)config {
     NSDictionary *configDict = @{
         @"isAdQualityEnabled": config.isAdQualityEnabled == true ? @"true" : @"false"
     };
     NSError *error;
     NSData *jsonData = [NSJSONSerialization dataWithJSONObject:configDict options:0 error:&error];
-    return jsonData ? [[NSString alloc] initWithData:jsonData encoding:NSUTF8StringEncoding] : @"";
-}
-
-- (NSString *)serializeErrorToJSON:(NSError *)adError{
-    NSLog(@"levelplay failed to load-3");
-    NSDictionary *errorDict = @{
-        @"errorCode": [@(adError.code) stringValue] ?: @"",
-        @"errorMessage": adError.description ?: @""
-    };
-    NSError *error;
-    NSData *jsonData = [NSJSONSerialization dataWithJSONObject:errorDict options:0 error:&error];
     return jsonData ? [[NSString alloc] initWithData:jsonData encoding:NSUTF8StringEncoding] : @"";
 }
 
@@ -92,7 +114,7 @@ extern "C" {
 }
 
 - (void)initializationDidFailWithError:(NSError *)error {
-    NSString *jsonString = [self serializeErrorToJSON:error];
+    NSString *jsonString = [LPMUtilities serializeErrorToJSON:error];
     const char *errorString = [jsonString UTF8String];
     UnitySendMessage("IosLevelPlaySdk", "OnInitializationFailed", errorString);
 }

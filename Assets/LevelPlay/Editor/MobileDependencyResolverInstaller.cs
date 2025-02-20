@@ -23,8 +23,7 @@ namespace Unity.Services.LevelPlay.Editor
         const string k_ButtonCancel = "Cancel";
         const string k_ButtonDontAskAgain = "Ignore - Do not ask again during this session";
 
-        [InitializeOnLoadMethod]
-        static void InstallPlayServicesResolverIfNeeded()
+        internal static void InstallPlayServicesResolverIfNeeded()
         {
             if (!IsPackageInstalled(k_UnityMediationPackage))
             {
@@ -86,7 +85,7 @@ namespace Unity.Services.LevelPlay.Editor
             }
             catch (Exception e)
             {
-                LevelPlayLogger.LogException(e);
+                EditorServices.Instance.LevelPlayLogger.LogException(e);
                 return false;
             }
         }

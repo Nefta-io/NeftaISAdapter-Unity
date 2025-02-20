@@ -23,7 +23,7 @@ public class IronSourceManifestProcessor : IPreprocessBuild
     private const string AD_ID_PERMISSION_ATTR = "com.google.android.gms.permission.AD_ID";
     private const string MANIFEST_PERMISSION = "uses-permission";
     private const string MANIFEST_META_DATA = "meta-data";
-    string m_AndroidManifestPath => EnvironmentVariables.androidManifestPath;
+    string m_AndroidManifestPath { get; set; } = EnvironmentVariables.androidManifestPath;
     private XNamespace ns = "http://schemas.android.com/apk/res/android";
 
     public int callbackOrder { get { return 0; } }
@@ -36,8 +36,6 @@ public class IronSourceManifestProcessor : IPreprocessBuild
     {
         if (File.Exists(IronSourceMediatedNetworkSettings.MEDIATION_SETTINGS_ASSET_PATH) || File.Exists(IronSourceMediationSettings.IRONSOURCE_SETTINGS_ASSET_PATH))
         {
-
-
             XElement elemManifest = ValidateAndroidManifest();
 
             XElement elemApplication = elemManifest.Element("application");
@@ -47,11 +45,10 @@ public class IronSourceManifestProcessor : IPreprocessBuild
                 string appId = IronSourceMediatedNetworkSettingsInspector.IronSourceMediatedNetworkSettings.AdmobAndroidAppId;
 
                 IEnumerable<XElement> metas = elemApplication.Descendants()
-            .Where(elem => elem.Name.LocalName.Equals(MANIFEST_META_DATA));
+                    .Where(elem => elem.Name.LocalName.Equals(MANIFEST_META_DATA));
 
                 if (IronSourceMediatedNetworkSettingsInspector.IronSourceMediatedNetworkSettings.EnableAdmob)
                 {
-
                     XElement elemAdMobEnabled = GetMetaElement(metas, META_APPLICATION_ID);
 
                     if (appId.Length == 0)
@@ -64,7 +61,6 @@ public class IronSourceManifestProcessor : IPreprocessBuild
                         StopBuildWithMessage(
                             "Android AdMob app ID is not valid. Please enter a valid app ID to run ads properly");
                     }
-
                     else if (elemAdMobEnabled == null)
                     {
                         elemApplication.Add(CreateMetaElement(META_APPLICATION_ID, appId));
@@ -73,7 +69,6 @@ public class IronSourceManifestProcessor : IPreprocessBuild
                     {
                         elemAdMobEnabled.SetAttributeValue(ns + "value", appId);
                     }
-
                 }
                 else if (GetPermissionElement(metas, META_APPLICATION_ID) != null)
                 {
@@ -88,31 +83,34 @@ public class IronSourceManifestProcessor : IPreprocessBuild
 
                 if (IronSourceMediationSettingsInspector.IronSourceMediationSettings.DeclareAD_IDPermission && GetPermissionElement(permissons, AD_ID_PERMISSION_ATTR) == null)
                 {
-
                     elemManifest.Add(CreatePermissionElement(AD_ID_PERMISSION_ATTR));
                 }
-
                 else if (GetPermissionElement(permissons, AD_ID_PERMISSION_ATTR) != null && !IronSourceMediationSettingsInspector.IronSourceMediationSettings.DeclareAD_IDPermission)
                 {
                     //remove the permission if flag is false
                     GetPermissionElement(permissons, AD_ID_PERMISSION_ATTR).Remove();
                 }
             }
-            elemManifest.Save(m_AndroidManifestPath);
 
+            if (m_AndroidManifestPath == null)
+            {
+                m_AndroidManifestPath = BuildManifest();
+            }
+
+            elemManifest.Save(m_AndroidManifestPath);
         }
     }
 
     private XElement CreateMetaElement(string name, object value)
     {
         return new XElement(MANIFEST_META_DATA,
-                new XAttribute(ns + "name", name), new XAttribute(ns + "value", value));
+            new XAttribute(ns + "name", name), new XAttribute(ns + "value", value));
     }
 
     private XElement CreatePermissionElement(string name)
     {
         return new XElement(MANIFEST_PERMISSION,
-                new XAttribute(ns + "name", name));
+            new XAttribute(ns + "name", name));
     }
 
     private XElement GetMetaElement(IEnumerable<XElement> metas, string metaName)
@@ -123,7 +121,7 @@ public class IronSourceManifestProcessor : IPreprocessBuild
             foreach (XAttribute attr in attrs)
             {
                 if (attr.Name.Namespace.Equals(ns)
-                        && attr.Name.LocalName.Equals("name") && attr.Value.Equals(metaName))
+                    && attr.Name.LocalName.Equals("name") && attr.Value.Equals(metaName))
                 {
                     return elem;
                 }
@@ -134,14 +132,13 @@ public class IronSourceManifestProcessor : IPreprocessBuild
 
     private XElement GetPermissionElement(IEnumerable<XElement> manifest, string permissionName)
     {
-
         foreach (XElement elem in manifest)
         {
             IEnumerable<XAttribute> attrs = elem.Attributes();
             foreach (XAttribute attr in attrs)
             {
                 if (attr.Name.Namespace.Equals(ns)
-                        && attr.Name.LocalName.Equals("name") && attr.Value.Equals(permissionName))
+                    && attr.Name.LocalName.Equals("name") && attr.Value.Equals(permissionName))
                 {
                     return elem;
                 }
@@ -168,6 +165,11 @@ public class IronSourceManifestProcessor : IPreprocessBuild
         XDocument manifest = null;
         try
         {
+            if (m_AndroidManifestPath == null)
+            {
+                m_AndroidManifestPath = BuildManifest();
+            }
+
             manifest = XDocument.Load(m_AndroidManifestPath);
         }
 #pragma warning disable 0168
@@ -190,6 +192,18 @@ public class IronSourceManifestProcessor : IPreprocessBuild
         }
 
         return elemManifest;
+    }
+
+    // Fallback method for path
+
+    string BuildManifest()
+    {
+        const string k_AndroidLibPath = "Runtime/Plugins/Android/IronSource.androidlib/AndroidManifest.xml";
+        var k_UpmManifestPath = Path.Combine("Packages/com.unity.services.levelplay", k_AndroidLibPath);
+        var k_DotUnityPackageManifestPath = Path.Combine("LevelPlay", k_AndroidLibPath);
+        var k_path = Path.GetFullPath(k_UpmManifestPath);
+
+        return File.Exists(k_path) ? k_path : Path.Combine(Application.dataPath, k_DotUnityPackageManifestPath);
     }
 }
 #endif
