@@ -1,7 +1,6 @@
 #if UNITY_EDITOR
 using Nefta.Editor;
 #elif UNITY_IOS
-using System;
 using System.Runtime.InteropServices;
 using AOT;
 #endif
@@ -18,6 +17,14 @@ namespace Nefta
     public class Adapter
     {
         public delegate void OnBehaviourInsightCallback(Dictionary<string, Insight> insights);
+        
+        public enum AdType
+        {
+            Other = 0,
+            Banner = 1,
+            Interstitial = 2,
+            Rewarded = 3
+        }
         
 #if UNITY_EDITOR
         private static NeftaPlugin _plugin;
@@ -37,6 +44,9 @@ namespace Nefta
 
         [DllImport ("__Internal")]
         private static extern void NeftaPlugin_Record(int type, int category, int subCategory, string nameValue, long value, string customPayload);
+
+        [DllImport ("__Internal")]
+        private static extern void NeftaPlugin_OnExternalAdLoad(int adType, double unitFloorPrice, double calculatedFloorPrice, int status);
 
         [DllImport ("__Internal")]
         private static extern string NeftaPlugin_GetNuid(bool present);
@@ -131,6 +141,32 @@ namespace Nefta
             NeftaPlugin_Record(type, category, subCategory, name, value, customPayload);
 #elif UNITY_ANDROID
             _plugin.Call("Record", type, category, subCategory, name, value, customPayload);
+#endif
+        }
+        
+        public static void OnExternalAdLoad(AdType adType, double calculatedFloorPrice)
+        {
+            OnExternalAdLoad((int) adType, -1, calculatedFloorPrice, 1);
+        }
+
+        public static void OnExternalAdFail(AdType adType, double calculatedFloorPrice, int  errorCode)
+        {
+            var status = 0;
+            if (errorCode == 509 || errorCode == 606 || errorCode == 706 || errorCode == 1058 || errorCode == 1158)
+            {
+                status = 2;
+            }
+            OnExternalAdLoad((int) adType, -1, calculatedFloorPrice, status);
+        }
+
+        private static void OnExternalAdLoad(int adType, double unitFloorPrice, double calculatedFloorPrice, int status)
+        {
+#if UNITY_EDITOR
+            _plugin.OnExternalAdLoad("is", adType, unitFloorPrice, calculatedFloorPrice, status);
+#elif UNITY_IOS
+            NeftaPlugin_OnExternalAdLoad(adType, unitFloorPrice, calculatedFloorPrice, status);
+#elif UNITY_ANDROID
+            _plugin.CallStatic("OnExternalAdLoad", "is", adType, unitFloorPrice, calculatedFloorPrice, status);
 #endif
         }
         

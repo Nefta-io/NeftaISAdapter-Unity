@@ -1,3 +1,4 @@
+using com.unity3d.mediation;
 using Nefta;
 using Nefta.Events;
 using UnityEngine;
@@ -12,20 +13,20 @@ namespace AdDemo
         [SerializeField] private Button _show;
         [SerializeField] private Text _status;
 
+        private LevelPlayInterstitialAd _interstitial;
+
         public void Init()
         {
-            IronSourceInterstitialEvents.onAdReadyEvent += InterstitialOnAdReadyEvent;
-            IronSourceInterstitialEvents.onAdLoadFailedEvent += InterstitialOnAdLoadFailed;
-            IronSourceInterstitialEvents.onAdOpenedEvent += InterstitialOnAdOpenedEvent;
-            IronSourceInterstitialEvents.onAdClickedEvent += InterstitialOnAdClickedEvent;
-            IronSourceInterstitialEvents.onAdShowSucceededEvent += InterstitialOnAdShowSucceededEvent;
-            IronSourceInterstitialEvents.onAdShowFailedEvent += InterstitialOnAdShowFailedEvent;
-            IronSourceInterstitialEvents.onAdClosedEvent += InterstitialOnAdClosedEvent;
-            
             _load.onClick.AddListener(OnLoadClick);
             _show.onClick.AddListener(OnShowClick);
             
+            _load.interactable = false;
             _show.interactable = false;
+        }
+        
+        public void OnReady()
+        {
+            _load.interactable = true;
         }
 
         private void OnLoadClick()
@@ -34,18 +35,32 @@ namespace AdDemo
             var method = (ReceiveMethod)Random.Range(0, 8);
             var value = Random.Range(0, 101);
             Adapter.Record(new ReceiveEvent(category) { _method = method, _name = $"receive_{category} {method} {value}", _value = value });
+
+            string adUnitId = "wrzl86if1sqfxquc";
+#if UNITY_IOS
+            adUnitId = "q0z1act0tdckh4mg";
+#endif
+            
+            _interstitial = new LevelPlayInterstitialAd(adUnitId);
+            _interstitial.OnAdLoaded += OnAdLoaded;
+            _interstitial.OnAdLoadFailed += OnAdLoadFailed;
+            _interstitial.OnAdDisplayed += OnAdDisplayed;
+            _interstitial.OnAdDisplayFailed += OnAdDisplayFailed;
+            _interstitial.OnAdClicked += OnAdClicked;
+            _interstitial.OnAdInfoChanged += OnAdInfoChanged;
+            _interstitial.OnAdClosed += OnAdClosed;
+            _interstitial.LoadAd();
             
             SetStatus("Loading interstitial...");
-            IronSource.Agent.loadInterstitial();
         }
         
         private void OnShowClick()
         {
             _show.interactable = false;
-            if (IronSource.Agent.isInterstitialReady())
+            if (_interstitial.IsAdReady())
             {
                 SetStatus("Showing interstitial");
-                IronSource.Agent.showInterstitial();
+                _interstitial.ShowAd();
             }
             else
             {
@@ -53,40 +68,44 @@ namespace AdDemo
             }
         }
 
-        private void InterstitialOnAdReadyEvent(IronSourceAdInfo adInfo)
+        private void OnAdLoaded(LevelPlayAdInfo info)
         {
-            SetStatus($"Loaded {adInfo.adNetwork} {adInfo.adUnit}");
+            SetStatus($"OnAdLoaded {info}");
             _show.interactable = true;
+            
+            Adapter.OnExternalAdLoad(Adapter.AdType.Interstitial, 0.4f);
         }
 
-        private void InterstitialOnAdLoadFailed(IronSourceError ironSourceError)
+        private void OnAdLoadFailed(LevelPlayAdError error)
         {
-            SetStatus($"Load failed {ironSourceError}");
+            SetStatus($"OnAdLoadFailed {error}");
+            
+            Adapter.OnExternalAdFail(Adapter.AdType.Interstitial, 0.4f, error.ErrorCode);
         }
         
-        private void InterstitialOnAdShowFailedEvent(IronSourceError ironSourceError, IronSourceAdInfo adInfo)
+        private void OnAdDisplayFailed(LevelPlayAdDisplayInfoError error)
         {
-            SetStatus($"Display failed {adInfo.adNetwork} {adInfo.adUnit}");
+            SetStatus($"OnAdDisplayFailed {error}");
         }
 
-        private void InterstitialOnAdOpenedEvent(IronSourceAdInfo adInfo)
+        private void OnAdDisplayed(LevelPlayAdInfo info)
         {
-            SetStatus($"Opened {adInfo.adNetwork} {adInfo.adUnit}");
+            SetStatus($"OnAdDisplayed {info}");
         }
 
-        private void InterstitialOnAdClickedEvent(IronSourceAdInfo adInfo)
+        private void OnAdClicked(LevelPlayAdInfo info)
         {
-            SetStatus($"Clicked {adInfo.adNetwork} {adInfo.adUnit}");
+            SetStatus($"OnAdClicked {info}");
         }
 
-        private void InterstitialOnAdShowSucceededEvent(IronSourceAdInfo adInfo)
+        private void OnAdInfoChanged(LevelPlayAdInfo info)
         {
-            SetStatus($"Displayed {adInfo.adNetwork} {adInfo.adUnit}");
+            SetStatus($"OnAdInfoChanged {info}");
         }
         
-        private void InterstitialOnAdClosedEvent(IronSourceAdInfo adInfo)
+        private void OnAdClosed(LevelPlayAdInfo info)
         {
-            SetStatus($"Hidden {adInfo.adNetwork} {adInfo.adUnit}");
+            SetStatus($"OnAdClosed {info}");
         }
 
         private void SetStatus(string status)

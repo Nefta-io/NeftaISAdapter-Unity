@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using com.unity3d.mediation;
 using Nefta;
 using Nefta.Events;
 using UnityEngine;
@@ -28,7 +29,7 @@ namespace AdDemo
             new ProgressionEvent(Type.Task, Status.Start) { _name = "tutorial", _value = 1}.Record();
             
             Adapter.BehaviourInsightCallback = OnBehaviourInsight;
-            Adapter.GetBehaviourInsight(new string[] { "p_churn_14d"});
+            Adapter.GetBehaviourInsight(new string[] { "p_churn_14d", "pred_total_value", "pred_ecpm_banner" });
             
             Debug.Log("unity-script: IronSource.Agent.validateIntegration");
             IronSource.Agent.validateIntegration();
@@ -37,35 +38,39 @@ namespace AdDemo
 
             // SDK init
             Debug.Log("unity-script: IronSource.Agent.init");
-            IronSource.Agent.init(_appKey);
-
-            IronSourceEvents.onSdkInitializationCompletedEvent += SdkInitializationCompletedEvent;
-            IronSourceEvents.onImpressionDataReadyEvent += ImpressionDataReadyEvent;
+            LevelPlay.OnInitSuccess += OnInitSuccess;
+            LevelPlay.OnInitFailed += OnInitFailed;
+            LevelPlay.Init(_appKey);
             
             _banner.Init();
             _interstitial.Init();
             _rewarded.Init();
         }
         
-        void OnApplicationPause(bool isPaused)
+        private void OnApplicationPause(bool isPaused)
         {
             Debug.Log("unity-script: OnApplicationPause = " + isPaused);
-            IronSource.Agent.onApplicationPause(isPaused);
+            LevelPlay.SetPauseGame(isPaused);
         }
         
-        void SdkInitializationCompletedEvent()
+        private void OnInitSuccess(LevelPlayConfiguration configuration)
         {
-            Debug.Log("unity-script: I got SdkInitializationCompletedEvent");
+            Debug.Log("unity-script: I got SdkInitializationCompletedEvent: "+ configuration);
+            
+            _banner.OnReady();
+            _interstitial.OnReady();
+            _rewarded.OnReady();
         }
-        
-        void ImpressionDataReadyEvent(IronSourceImpressionData impressionData)
+
+        private void OnInitFailed(LevelPlayInitError error)
         {
-            Debug.Log("unity - script: I got ImpressionDataReadyEvent ToString(): " + impressionData.ToString());
-            Debug.Log("unity - script: I got ImpressionDataReadyEvent allData: " + impressionData.allData);
+            Debug.Log("unity-script: I got SdkInitializationCompletedEvent: "+ error);
         }
         
         private void OnBehaviourInsight(Dictionary<string, Insight> behaviourInsight)
         {
+            _banner.SetInsights(behaviourInsight);
+            
             foreach (var insight in behaviourInsight)
             {
                 var insightValue = insight.Value;

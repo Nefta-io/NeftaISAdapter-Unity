@@ -11,6 +11,7 @@ extern "C" {
     void EnableLogging(bool enable);
     void NeftaPlugin_Init(const char *appId, bool sendImpressions, OnBehaviourInsight onBehaviourInsight);
     void NeftaPlugin_Record(int type, int category, int subCategory, const char *name, long value, const char *customPayload);
+    void NeftaPlugin_OnExternalAdLoad(int adType, double unitFloorPrice, double calculatedFloorPrice, int status);
     const char * NeftaPlugin_GetNuid(bool present);
     void NeftaPlugin_GetBehaviourInsight(const char *insights);
     void NeftaPlugin_SetOverride(const char *root);
@@ -47,6 +48,10 @@ const char * NeftaPlugin_GetNuid(bool present) {
 
 void NeftaPlugin_GetBehaviourInsight(const char *insights) {
     [_plugin GetBehaviourInsightWithString: [NSString stringWithUTF8String: insights]];
+}
+
+void NeftaPlugin_OnExternalAdLoad(int adType, double unitFloorPrice, double calculatedFloorPrice, int status) {
+    [NeftaPlugin OnExternalAdLoad: @"is" adType: adType unitFloorPrice: unitFloorPrice calculatedFloorPrice: calculatedFloorPrice status: status];
 }
 
 void NeftaPlugin_SetOverride(const char *root) {
