@@ -231,7 +231,7 @@ namespace Nefta.Editor
                 _error = "ISNeftaCustomAdapter not found in project";
                 return;
             }
-            if (guids.Length > 2)
+            if (guids.Length > 3)
             {
                 _error = "Multiple instances of ISNeftaCustomAdapter found in project";
                 return;
