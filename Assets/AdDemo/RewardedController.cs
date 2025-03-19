@@ -74,7 +74,7 @@ namespace AdDemo
             SetStatus($"OnAdLoaded {info}");
             _show.interactable = true;
             
-            Adapter.OnExternalAdLoad(Adapter.AdType.Rewarded, 0.4f);
+            Adapter.OnExternalMediationRequestLoaded(Adapter.AdType.Rewarded, 2.3, 2.4, info);
         }
         
         private void OnAdLoadFailed(LevelPlayAdError error)
@@ -82,7 +82,7 @@ namespace AdDemo
             SetStatus($"OnAdLoadFailed {error}");
             _show.interactable = true;
             
-            Adapter.OnExternalAdFail(Adapter.AdType.Rewarded, 0.4f, error.ErrorCode);
+            Adapter.OnExternalMediationRequestFailed(Adapter.AdType.Rewarded, 2.5, 2.6, error);
         }
         
         private void OnAdDisplayFailed(LevelPlayAdDisplayInfoError error)

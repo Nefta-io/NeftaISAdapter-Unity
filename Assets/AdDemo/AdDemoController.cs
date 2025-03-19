@@ -3,6 +3,7 @@ using com.unity3d.mediation;
 using Nefta;
 using Nefta.Events;
 using UnityEngine;
+using UnityEngine.UI;
 
 namespace AdDemo
 {
@@ -17,6 +18,9 @@ namespace AdDemo
 #endif
         private bool _isBannerShown;
 
+        [SerializeField] private Toggle _networkToggle;
+        [SerializeField] private Button _testSuiteButton;
+        
         [SerializeField] private BannerController _banner;
         [SerializeField] private InterstitialController _interstitial;
         [SerializeField] private RewardedController _rewarded;
@@ -30,21 +34,26 @@ namespace AdDemo
             
             Adapter.BehaviourInsightCallback = OnBehaviourInsight;
             Adapter.GetBehaviourInsight(new string[] { "p_churn_14d", "pred_total_value", "pred_ecpm_banner" });
+            Adapter.SetContentRating(Adapter.ContentRating.ParentalGuidance);
             
-            Debug.Log("unity-script: IronSource.Agent.validateIntegration");
-            IronSource.Agent.validateIntegration();
-
-            Debug.Log("unity-script: unity version" + IronSource.unityVersion());
-
-            // SDK init
             Debug.Log("unity-script: IronSource.Agent.init");
+            IronSource.Agent.setMetaData("is_test_suite", "enable");
+            IronSourceEvents.onSegmentReceivedEvent += SegmentReceivedEvent;
             LevelPlay.OnInitSuccess += OnInitSuccess;
             LevelPlay.OnInitFailed += OnInitFailed;
             LevelPlay.Init(_appKey);
             
+            Debug.Log("unity-script: IronSource.Agent.validateIntegration");
+            IronSource.Agent.validateIntegration();
+            Debug.Log("unity-script: unity version" + IronSource.unityVersion());
+            
             _banner.Init();
             _interstitial.Init();
             _rewarded.Init();
+            
+            _networkToggle.onValueChanged.AddListener(OnNetworkToggled);
+            _testSuiteButton.onClick.AddListener(OnTestSuiteClick);
+            SetSegment(false);
         }
         
         private void OnApplicationPause(bool isPaused)
@@ -76,6 +85,37 @@ namespace AdDemo
                 var insightValue = insight.Value;
                 Debug.Log($"BehaviourInsight {insight.Key} status:{insightValue._status} i:{insightValue._int} f:{insightValue._float} s:{insightValue._string}");
             }
+        }
+
+        private void OnNetworkToggled(bool isOn)
+        {
+            SetSegment(isOn);
+        }
+        
+        private void OnTestSuiteClick()
+        {
+            IronSource.Agent.launchTestSuite();
+        }
+
+        private void SetSegment(bool isIs)
+        {
+            IronSourceSegment networkSegment = new IronSourceSegment();
+            if (isIs)
+            {
+                networkSegment.segmentName = "is";
+            }
+            else
+            {
+                networkSegment.segmentName = "nefta";
+            }
+            IronSource.Agent.setSegment(networkSegment);
+
+            Debug.Log("Selected segment: "+ networkSegment.segmentName);
+        }
+
+        private void SegmentReceivedEvent(string segment)
+        {
+            Debug.Log("SegmentReceivedEvent: "+ segment);
         }
     }
 }

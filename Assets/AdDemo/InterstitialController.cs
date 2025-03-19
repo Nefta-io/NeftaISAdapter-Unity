@@ -73,14 +73,14 @@ namespace AdDemo
             SetStatus($"OnAdLoaded {info}");
             _show.interactable = true;
             
-            Adapter.OnExternalAdLoad(Adapter.AdType.Interstitial, 0.4f);
+            Adapter.OnExternalMediationRequestLoaded(Adapter.AdType.Interstitial, 1.3, 1.4, info);
         }
 
         private void OnAdLoadFailed(LevelPlayAdError error)
         {
             SetStatus($"OnAdLoadFailed {error}");
             
-            Adapter.OnExternalAdFail(Adapter.AdType.Interstitial, 0.4f, error.ErrorCode);
+            Adapter.OnExternalMediationRequestFailed(Adapter.AdType.Interstitial, 1.5, 0.6, error);
         }
         
         private void OnAdDisplayFailed(LevelPlayAdDisplayInfoError error)

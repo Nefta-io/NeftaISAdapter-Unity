@@ -16,9 +16,13 @@ namespace AdDemo
         
         private LevelPlayBannerAd _banner;
 
-        private const int NoFill = 509;
+        private bool IsNoFill(int errorCode)
+        {
+            return errorCode == 509 || errorCode == 606 || errorCode == 706 || errorCode == 1058 || errorCode == 1158;
+        }
 
         private double _bidFloor;
+        private double _calculatedBidFloor;
         private int _bidNoFillCount;
 
         public void Init()
@@ -44,12 +48,11 @@ namespace AdDemo
                 
             if (user_value_spread > 0)
             {
-                var bid_floor_price = pred_ecpm_banner + user_value_spread;
+                _calculatedBidFloor = pred_ecpm_banner + user_value_spread;
+                _bidFloor = _calculatedBidFloor;
                 
-                var configuration = WaterfallConfiguration.Builder().SetCeiling(bid_floor_price).Build();
+                var configuration = WaterfallConfiguration.Builder().SetCeiling(_bidFloor).Build();
                 IronSource.Agent.SetWaterfallConfiguration(configuration, AdFormat.Banner);
-
-                _bidFloor = bid_floor_price;
             }
         }
         
@@ -83,9 +86,9 @@ namespace AdDemo
         {
             SetStatus($"OnAdLoadFailed {error}");
             
-            Adapter.OnExternalAdFail(Adapter.AdType.Banner, _bidFloor, error.ErrorCode);
+            Adapter.OnExternalMediationRequestFailed(Adapter.AdType.Banner, _bidFloor, _calculatedBidFloor, error);
             
-            if (error.ErrorCode == NoFill && _bidFloor > 0)
+            if (IsNoFill(error.ErrorCode) && _bidFloor > 0)
             {
                 _bidNoFillCount++;
             
@@ -115,8 +118,14 @@ namespace AdDemo
         private void OnAdLoaded(LevelPlayAdInfo adInfo)
         {
             SetStatus($"OnAdLoaded {adInfo}");
-            
-            Adapter.OnExternalAdLoad(Adapter.AdType.Banner, 0.4);
+
+            _bidNoFillCount = 0;
+            Adapter.OnExternalMediationRequestLoaded(Adapter.AdType.Banner, _bidFloor, _calculatedBidFloor, adInfo);
+            // might try increase the bid again
+            // if (_bidFloor < _calculatedBidFloor)
+            // {
+            //    _bidFloor = _calculatedBidFloor;
+            //}
         }
 
         private void OnAdClicked(LevelPlayAdInfo adInfo)

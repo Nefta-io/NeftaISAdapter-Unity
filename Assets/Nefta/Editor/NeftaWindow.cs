@@ -1,12 +1,14 @@
 using System;
-using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
-using System.Linq;
 using System.Xml;
 using UnityEditor;
-using UnityEditor.Callbacks;
 using UnityEngine;
+#if UNITY_IOS
+using System.Collections.Generic;
+using System.Linq;
+using UnityEditor.Callbacks;
+#endif
 
 namespace Nefta.Editor
 {
@@ -29,6 +31,7 @@ namespace Nefta.Editor
             GetWindow(typeof(NeftaWindow), false, "Nefta");
         }
         
+#if UNITY_IOS
         [PostProcessBuild(0)]
         public static void NeftaPostProcessPlist(BuildTarget buildTarget, string path)
         {
@@ -70,6 +73,7 @@ namespace Nefta.Editor
                 plist.WriteToFile(plistPath);
             }
         }
+#endif
         
         public void OnEnable()
         {
@@ -137,7 +141,7 @@ namespace Nefta.Editor
             var assetPaths = new string[] { "Assets/Nefta" };
             
             TryGetPluginImporters();
-            TogglePlugins(true);
+            TogglePlugins(false);
             
             try
             {

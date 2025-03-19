@@ -9,6 +9,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Text;
 using System.Threading;
+using com.unity3d.mediation;
 using Nefta.Events;
 using UnityEngine;
 
@@ -24,6 +25,15 @@ namespace Nefta
             Banner = 1,
             Interstitial = 2,
             Rewarded = 3
+        }
+        
+        public enum ContentRating
+        {
+            Unspecified = 0,
+            General = 1,
+            ParentalGuidance = 2,
+            Teen = 3,
+            MatureAudience = 4
         }
         
 #if UNITY_EDITOR
@@ -46,10 +56,13 @@ namespace Nefta
         private static extern void NeftaPlugin_Record(int type, int category, int subCategory, string nameValue, long value, string customPayload);
 
         [DllImport ("__Internal")]
-        private static extern void NeftaPlugin_OnExternalAdLoad(int adType, double unitFloorPrice, double calculatedFloorPrice, int status);
+        private static extern void NeftaPlugin_OnExternalMediationRequest(int adType, double requestedFloorPrice, double calculatedFloorPrice, string adUnitId, double revenue, string precision, int status);
 
         [DllImport ("__Internal")]
         private static extern string NeftaPlugin_GetNuid(bool present);
+
+        [DllImport ("__Internal")]
+        private static extern void NeftaPlugin_SetContentRating(string rating);
         
         [DllImport ("__Internal")]
         private static extern void NeftaPlugin_GetBehaviourInsight(string insights);
@@ -144,29 +157,29 @@ namespace Nefta
 #endif
         }
         
-        public static void OnExternalAdLoad(AdType adType, double calculatedFloorPrice)
+        public static void OnExternalMediationRequestLoaded(AdType adType, double requestedFloorPrice, double calculatedFloorPrice, LevelPlayAdInfo adInfo)
         {
-            OnExternalAdLoad((int) adType, -1, calculatedFloorPrice, 1);
+            OnExternalMediationRequest((int) adType, requestedFloorPrice, calculatedFloorPrice, adInfo.AdUnitId, adInfo.Revenue ?? 0, adInfo.Precision, 1);
         }
 
-        public static void OnExternalAdFail(AdType adType, double calculatedFloorPrice, int  errorCode)
+        public static void OnExternalMediationRequestFailed(AdType adType, double requestedFloorPrice, double calculatedFloorPrice, LevelPlayAdError error)
         {
             var status = 0;
-            if (errorCode == 509 || errorCode == 606 || errorCode == 706 || errorCode == 1058 || errorCode == 1158)
+            if (error.ErrorCode == 509 || error.ErrorCode == 606 || error.ErrorCode == 706 || error.ErrorCode == 1058 || error.ErrorCode == 1158)
             {
                 status = 2;
             }
-            OnExternalAdLoad((int) adType, -1, calculatedFloorPrice, status);
+            OnExternalMediationRequest((int) adType, requestedFloorPrice, calculatedFloorPrice, error.AdUnitId, -1, null, status);
         }
 
-        private static void OnExternalAdLoad(int adType, double unitFloorPrice, double calculatedFloorPrice, int status)
+        private static void OnExternalMediationRequest(int adType, double requestedFloorPrice, double calculatedFloorPrice, string adUnitId, double revenue, string precision, int status)
         {
 #if UNITY_EDITOR
-            _plugin.OnExternalAdLoad("is", adType, unitFloorPrice, calculatedFloorPrice, status);
+            _plugin.OnExternalMediationRequest("is", adType, requestedFloorPrice, calculatedFloorPrice, adUnitId, revenue, precision, status);
 #elif UNITY_IOS
-            NeftaPlugin_OnExternalAdLoad(adType, unitFloorPrice, calculatedFloorPrice, status);
+            NeftaPlugin_OnExternalMediationRequest(adType, requestedFloorPrice, calculatedFloorPrice, adUnitId, revenue, precision, status);
 #elif UNITY_ANDROID
-            _plugin.CallStatic("OnExternalAdLoad", "is", adType, unitFloorPrice, calculatedFloorPrice, status);
+            _plugin.CallStatic("OnExternalMediationRequest", "is", adType, requestedFloorPrice, calculatedFloorPrice, adUnitId, revenue, precision, status);
 #endif
         }
         
@@ -216,6 +229,32 @@ namespace Nefta
             return nuid;
         }
         
+        public static void SetContentRating(ContentRating rating)
+        {
+            var r = "";
+            switch (rating)
+            {
+                case ContentRating.General:
+                    r = "G";
+                    break;
+                case ContentRating.ParentalGuidance:
+                    r = "PG";
+                    break;
+                case ContentRating.Teen:
+                    r = "T";
+                    break;
+                case ContentRating.MatureAudience:
+                    r = "MA";
+                    break;
+            }
+#if UNITY_EDITOR
+            _plugin.SetContentRating(r);
+#elif UNITY_IOS
+            NeftaPlugin_SetContentRating(r);
+#elif UNITY_ANDROID
+            _plugin.Call("SetContentRating", r);
+#endif
+        }
                 
         public static void SetOverride(string root) 
         {
@@ -224,7 +263,10 @@ namespace Nefta
 #elif UNITY_IOS
             NeftaPlugin_SetOverride(root);
 #elif UNITY_ANDROID
-            _plugin.Call("SetOverride", root);
+            using (AndroidJavaClass neftaPlugin = new AndroidJavaClass("com.nefta.sdk.NeftaPlugin"))
+            {
+                neftaPlugin.CallStatic("SetOverride", root);
+            }
 #endif
         }
         
