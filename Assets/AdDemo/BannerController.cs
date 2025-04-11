@@ -42,18 +42,13 @@ namespace AdDemo
 
         public void SetInsights(Dictionary<string, Insight> insights)
         {
-            var pred_total_value = insights["pred_total_value"]._float;
-            var pred_ecpm_banner = insights["pred_ecpm_banner"]._float;
-            var user_value_spread = pred_total_value - pred_ecpm_banner;
+            _calculatedBidFloor = insights["calculated_user_floor_price_banner"]._float;
                 
-            if (user_value_spread > 0)
-            {
-                _calculatedBidFloor = pred_ecpm_banner + user_value_spread;
-                _bidFloor = _calculatedBidFloor;
-                
-                var configuration = WaterfallConfiguration.Builder().SetCeiling(_bidFloor).Build();
-                IronSource.Agent.SetWaterfallConfiguration(configuration, AdFormat.Banner);
-            }
+            var configuration = WaterfallConfiguration.Builder()
+                .SetFloor(_bidFloor)
+                .SetCeiling(_bidFloor * 1.5f) // high number just because it has to be set
+                .Build();
+            IronSource.Agent.SetWaterfallConfiguration(configuration, AdFormat.Banner);
         }
         
         private void OnShowClick()

@@ -11,7 +11,7 @@ extern "C" {
     void EnableLogging(bool enable);
     void NeftaPlugin_Init(const char *appId, bool sendImpressions, OnBehaviourInsight onBehaviourInsight);
     void NeftaPlugin_Record(int type, int category, int subCategory, const char *name, long value, const char *customPayload);
-    void NeftaPlugin_OnExternalMediationRequest(int adType, double requestedFloorPrice, double calculatedFloorPrice, const char *adUnitId, double revenue, const char *precision, int status);
+    void NeftaPlugin_OnExternalMediationRequest(int adType, const char *recommendedAdUnitId, double requestedFloorPrice, double calculatedFloorPrice, const char *adUnitId, double revenue, const char *precision, int status);
     const char * NeftaPlugin_GetNuid(bool present);
     void NeftaPlugin_SetContentRating(const char *rating);
     void NeftaPlugin_GetBehaviourInsight(const char *insights);
@@ -55,10 +55,11 @@ void NeftaPlugin_GetBehaviourInsight(const char *insights) {
     [_plugin GetBehaviourInsightWithString: [NSString stringWithUTF8String: insights]];
 }
 
-void NeftaPlugin_OnExternalMediationRequest(int adType, double requestedFloorPrice, double calculatedFloorPrice, const char *adUnitId, double revenue, const char *precision, int status) {
+void NeftaPlugin_OnExternalMediationRequest(int adType, const char *recommendedAdUnitId, double requestedFloorPrice, double calculatedFloorPrice, const char *adUnitId, double revenue, const char *precision, int status) {
+    NSString *r = recommendedAdUnitId ? [NSString stringWithUTF8String: recommendedAdUnitId] : nil;
     NSString *a = adUnitId ? [NSString stringWithUTF8String: adUnitId] : nil;
     NSString *p = precision ? [NSString stringWithUTF8String: precision] : nil;
-    [NeftaPlugin OnExternalMediationRequest: @"is" adType: adType requestedFloorPrice: requestedFloorPrice calculatedFloorPrice: calculatedFloorPrice adUnitId: a revenue: revenue precision: p status: status];
+    [NeftaPlugin OnExternalMediationRequest: @"is" adType: adType recommendedAdUnitId: r requestedFloorPrice: requestedFloorPrice calculatedFloorPrice: calculatedFloorPrice adUnitId: a revenue: revenue precision: p status: status];
 }
 
 void NeftaPlugin_SetOverride(const char *root) {

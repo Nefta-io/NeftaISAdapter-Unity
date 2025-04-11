@@ -56,7 +56,7 @@ namespace Nefta
         private static extern void NeftaPlugin_Record(int type, int category, int subCategory, string nameValue, long value, string customPayload);
 
         [DllImport ("__Internal")]
-        private static extern void NeftaPlugin_OnExternalMediationRequest(int adType, double requestedFloorPrice, double calculatedFloorPrice, string adUnitId, double revenue, string precision, int status);
+        private static extern void NeftaPlugin_OnExternalMediationRequest(int adType, string recommendedAdUnitId, double requestedFloorPrice, double calculatedFloorPrice, string adUnitId, double revenue, string precision, int status);
 
         [DllImport ("__Internal")]
         private static extern string NeftaPlugin_GetNuid(bool present);
@@ -175,11 +175,11 @@ namespace Nefta
         private static void OnExternalMediationRequest(int adType, double requestedFloorPrice, double calculatedFloorPrice, string adUnitId, double revenue, string precision, int status)
         {
 #if UNITY_EDITOR
-            _plugin.OnExternalMediationRequest("is", adType, requestedFloorPrice, calculatedFloorPrice, adUnitId, revenue, precision, status);
+            _plugin.OnExternalMediationRequest("is", adType, null, requestedFloorPrice, calculatedFloorPrice, adUnitId, revenue, precision, status);
 #elif UNITY_IOS
-            NeftaPlugin_OnExternalMediationRequest(adType, requestedFloorPrice, calculatedFloorPrice, adUnitId, revenue, precision, status);
+            NeftaPlugin_OnExternalMediationRequest(adType, null, requestedFloorPrice, calculatedFloorPrice, adUnitId, revenue, precision, status);
 #elif UNITY_ANDROID
-            _plugin.CallStatic("OnExternalMediationRequest", "is", adType, requestedFloorPrice, calculatedFloorPrice, adUnitId, revenue, precision, status);
+            _plugin.CallStatic("OnExternalMediationRequest", "is", adType, null, requestedFloorPrice, calculatedFloorPrice, adUnitId, revenue, precision, status);
 #endif
         }
         
@@ -309,7 +309,7 @@ namespace Nefta
                             }
 
                             var doubleString = bi.Substring(start, end - start);
-                            floatVal = Double.Parse(doubleString, NumberStyles.Float);
+                            floatVal = Double.Parse(doubleString, NumberStyles.Float, CultureInfo.InvariantCulture);
                         }
                         else if (bi[start] == 'i')
                         {
@@ -324,7 +324,7 @@ namespace Nefta
                             }
 
                             var intString = bi.Substring(start, end - start);
-                            intVal = long.Parse(intString, NumberStyles.Number);
+                            intVal = long.Parse(intString, NumberStyles.Number, CultureInfo.InvariantCulture);
                         }
                         else if (bi[start] == 's')
                         {
@@ -351,19 +351,22 @@ namespace Nefta
 
                     start = end + 3;
                 }
+                
+                foreach (var insightName in _scheduledBehaviourInsight)
+                {
+                    if (!behaviourInsight.ContainsKey(insightName))
+                    {
+                        behaviourInsight.Add(insightName, new Insight("Error retrieving key", 0, 0, null));
+                    }
+                }
+                
+                _scheduledBehaviourInsight = null;
+                _threadContext.Post(_ => BehaviourInsightCallback(behaviourInsight), null);
             }
             catch (Exception)
             {
                 // ignored
             }
-            foreach (var insightName in _scheduledBehaviourInsight)
-            {
-                if (!behaviourInsight.ContainsKey(insightName))
-                {
-                    behaviourInsight.Add(insightName, new Insight("Error retrieving key", 0, 0, null));
-                }
-            }
-            _threadContext.Post(_ => BehaviourInsightCallback(behaviourInsight), null);
         }
         
         internal static string JavaScriptStringEncode(string value)

@@ -31,8 +31,11 @@ namespace AdDemo
             Adapter.Init(_neftaAppId);
                 
             new ProgressionEvent(Type.Task, Status.Start) { _name = "tutorial", _value = 1}.Record();
-            
-            Adapter.BehaviourInsightCallback = OnBehaviourInsight;
+
+            Adapter.BehaviourInsightCallback = (insights) =>
+            {
+
+            };
             Adapter.GetBehaviourInsight(new string[] { "p_churn_14d", "pred_total_value", "pred_ecpm_banner" });
             Adapter.SetContentRating(Adapter.ContentRating.ParentalGuidance);
             
