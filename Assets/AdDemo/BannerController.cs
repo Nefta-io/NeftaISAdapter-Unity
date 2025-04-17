@@ -9,6 +9,8 @@ namespace AdDemo
 {
     public class BannerController : MonoBehaviour
     {
+        public const string InsightName = "calculated_user_floor_price_banner";
+        
         [SerializeField] private Text _title;
         [SerializeField] private Button _show;
         [SerializeField] private Button _hide;
@@ -42,7 +44,7 @@ namespace AdDemo
 
         public void SetInsights(Dictionary<string, Insight> insights)
         {
-            _calculatedBidFloor = insights["calculated_user_floor_price_banner"]._float;
+            _calculatedBidFloor = insights[InsightName]._float;
                 
             var configuration = WaterfallConfiguration.Builder()
                 .SetFloor(_bidFloor)

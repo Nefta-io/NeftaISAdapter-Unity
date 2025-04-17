@@ -29,15 +29,12 @@ namespace AdDemo
         {
             Adapter.EnableLogging(true);
             Adapter.Init(_neftaAppId);
-                
-            new ProgressionEvent(Type.Task, Status.Start) { _name = "tutorial", _value = 1}.Record();
 
-            Adapter.BehaviourInsightCallback = (insights) =>
-            {
-
-            };
-            Adapter.GetBehaviourInsight(new string[] { "p_churn_14d", "pred_total_value", "pred_ecpm_banner" });
+            Adapter.BehaviourInsightCallback = OnBehaviourInsight;
+            Adapter.GetBehaviourInsight(new string[] { BannerController.InsightName });
             Adapter.SetContentRating(Adapter.ContentRating.ParentalGuidance);
+            
+            new ProgressionEvent(Type.Task, Status.Start) { _name = "tutorial", _value = 1}.Record();
             
             Debug.Log("unity-script: IronSource.Agent.init");
             IronSource.Agent.setMetaData("is_test_suite", "enable");
