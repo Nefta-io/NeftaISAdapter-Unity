@@ -59,7 +59,7 @@ void NeftaPlugin_OnExternalMediationRequest(int adType, const char *recommendedA
     NSString *r = recommendedAdUnitId ? [NSString stringWithUTF8String: recommendedAdUnitId] : nil;
     NSString *a = adUnitId ? [NSString stringWithUTF8String: adUnitId] : nil;
     NSString *p = precision ? [NSString stringWithUTF8String: precision] : nil;
-    [NeftaPlugin OnExternalMediationRequest: @"is" adType: adType recommendedAdUnitId: r requestedFloorPrice: requestedFloorPrice calculatedFloorPrice: calculatedFloorPrice adUnitId: a revenue: revenue precision: p status: status];
+    [NeftaPlugin OnExternalMediationRequest: @"ironsource-levelplay" adType: adType recommendedAdUnitId: r requestedFloorPrice: requestedFloorPrice calculatedFloorPrice: calculatedFloorPrice adUnitId: a revenue: revenue precision: p status: status];
 }
 
 void NeftaPlugin_SetOverride(const char *root) {

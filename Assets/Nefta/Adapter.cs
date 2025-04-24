@@ -175,11 +175,11 @@ namespace Nefta
         private static void OnExternalMediationRequest(int adType, double requestedFloorPrice, double calculatedFloorPrice, string adUnitId, double revenue, string precision, int status)
         {
 #if UNITY_EDITOR
-            _plugin.OnExternalMediationRequest("is", adType, null, requestedFloorPrice, calculatedFloorPrice, adUnitId, revenue, precision, status);
+            _plugin.OnExternalMediationRequest("ironsource-levelplay", adType, null, requestedFloorPrice, calculatedFloorPrice, adUnitId, revenue, precision, status);
 #elif UNITY_IOS
             NeftaPlugin_OnExternalMediationRequest(adType, null, requestedFloorPrice, calculatedFloorPrice, adUnitId, revenue, precision, status);
 #elif UNITY_ANDROID
-            _plugin.CallStatic("OnExternalMediationRequest", "is", adType, null, requestedFloorPrice, calculatedFloorPrice, adUnitId, revenue, precision, status);
+            _plugin.CallStatic("OnExternalMediationRequest", "ironsource-levelplay", adType, null, requestedFloorPrice, calculatedFloorPrice, adUnitId, revenue, precision, status);
 #endif
         }
         
@@ -351,7 +351,14 @@ namespace Nefta
 
                     start = end + 3;
                 }
-                
+            }
+            catch (Exception)
+            {
+                // ignored
+            }
+
+            try
+            {
                 foreach (var insightName in _scheduledBehaviourInsight)
                 {
                     if (!behaviourInsight.ContainsKey(insightName))
