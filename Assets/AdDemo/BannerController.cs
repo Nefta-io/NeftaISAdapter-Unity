@@ -1,7 +1,8 @@
+using System.Collections;
 using System.Collections.Generic;
-using com.unity3d.mediation;
 using Nefta;
 using Nefta.Events;
+using Unity.Services.LevelPlay;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -9,7 +10,12 @@ namespace AdDemo
 {
     public class BannerController : MonoBehaviour
     {
-        public const string InsightName = "calculated_user_floor_price_banner";
+#if UNITY_IOS
+        string AdUnitId = "4gyff1ux8ch1qz7y";
+#else
+        string AdUnitId = "vpkt794d6ruyfwr4";
+#endif
+        private const string FloorPriceInsightName = "calculated_user_floor_price_banner";
         
         [SerializeField] private Text _title;
         [SerializeField] private Button _show;
@@ -18,14 +24,80 @@ namespace AdDemo
         
         private LevelPlayBannerAd _banner;
 
-        private bool IsNoFill(int errorCode)
-        {
-            return errorCode == 509 || errorCode == 606 || errorCode == 706 || errorCode == 1058 || errorCode == 1158;
-        }
-
+        private bool _isLoadRequested;
         private double _bidFloor;
         private double _calculatedBidFloor;
-        private int _bidNoFillCount;
+        
+        private void GetInsightsAndLoad()
+        {
+            _isLoadRequested = true;
+            
+            Adapter.GetBehaviourInsight(new string[] { FloorPriceInsightName }, OnBehaviourInsight);
+            
+            StartCoroutine(LoadFallback());
+        }
+        
+        private void OnBehaviourInsight(Dictionary<string, Insight> insights)
+        {
+            _calculatedBidFloor = 0f;
+            if (insights.TryGetValue(FloorPriceInsightName, out var insight)) {
+                _calculatedBidFloor = insight._float;
+            }
+            
+            Debug.Log($"OnBehaviourInsight for Banner calculated bid floor: {_calculatedBidFloor}");
+            
+            if (_isLoadRequested)
+            {
+                Load();
+            }
+        }
+        
+        private void Load()
+        {
+            _isLoadRequested = false;
+            
+            if (_calculatedBidFloor == 0)
+            {
+                IronSource.Agent.SetWaterfallConfiguration(WaterfallConfiguration.Empty(), AdFormat.Banner);
+            }
+            else
+            {
+                var configuration = WaterfallConfiguration.Builder()
+                    .SetFloor(_bidFloor)
+                    .SetCeiling(_bidFloor + 200) // when using SetFloor, SetCeiling has to be used as well
+                    .Build();
+                IronSource.Agent.SetWaterfallConfiguration(configuration, AdFormat.Banner);   
+            }
+            
+            _banner = new LevelPlayBannerAd(AdUnitId, com.unity3d.mediation.LevelPlayAdSize.BANNER, com.unity3d.mediation.LevelPlayBannerPosition.TopCenter, null, true, true);
+            _banner.OnAdLoaded += OnAdLoaded;
+            _banner.OnAdLoadFailed += OnAdLoadFailed;
+            _banner.OnAdDisplayed += OnAdDisplayed;
+            _banner.OnAdDisplayFailed += OnAdDisplayFailed;
+            _banner.OnAdClicked += OnAdClicked;
+            _banner.OnAdExpanded += OnAdExpanded;
+            _banner.OnAdCollapsed += OnAdCollapsed;
+            _banner.OnAdLeftApplication += OnAdLeftApplication;
+            _banner.LoadAd();
+            
+            SetStatus($"Loading Banner calculatedFloor: {_calculatedBidFloor}");
+        }
+        
+        private void OnAdLoadFailed(LevelPlayAdError error)
+        {
+            Adapter.OnExternalMediationRequestFailed(Adapter.AdType.Banner, _bidFloor, _calculatedBidFloor, error);
+            
+            SetStatus($"OnAdLoadFailed {error}");
+            
+            StartCoroutine(ReTryLoad());
+        }
+        
+        private void OnAdLoaded(LevelPlayAdInfo adInfo)
+        {
+            Adapter.OnExternalMediationRequestLoaded(Adapter.AdType.Banner, _bidFloor, _calculatedBidFloor, adInfo);
+            
+            SetStatus($"OnAdLoaded {adInfo}");
+        }
 
         public void Init()
         {
@@ -41,69 +113,14 @@ namespace AdDemo
         {
             _show.interactable = true;
         }
-
-        public void SetInsights(Dictionary<string, Insight> insights)
-        {
-            _calculatedBidFloor = insights[InsightName]._float;
-                
-            var configuration = WaterfallConfiguration.Builder()
-                .SetFloor(_bidFloor)
-                .SetCeiling(_bidFloor * 1.5f) // high number just because it has to be set
-                .Build();
-            IronSource.Agent.SetWaterfallConfiguration(configuration, AdFormat.Banner);
-        }
         
         private void OnShowClick()
         {
-            LoadAd();
+            GetInsightsAndLoad();
             
             _hide.interactable = true;
-        }
 
-        private void LoadAd()
-        {
-            string adUnitId = "vpkt794d6ruyfwr4";
-#if UNITY_IOS
-            adUnitId = "4gyff1ux8ch1qz7y";
-#endif
-            
-            _banner = new LevelPlayBannerAd(adUnitId, LevelPlayAdSize.BANNER, LevelPlayBannerPosition.TopCenter, null, true, true);
-            _banner.OnAdLoaded += OnAdLoaded;
-            _banner.OnAdLoadFailed += OnAdLoadFailed;
-            _banner.OnAdDisplayed += OnAdDisplayed;
-            _banner.OnAdDisplayFailed += OnAdDisplayFailed;
-            _banner.OnAdClicked += OnAdClicked;
-            _banner.OnAdExpanded += OnAdExpanded;
-            _banner.OnAdCollapsed += OnAdCollapsed;
-            _banner.OnAdLeftApplication += OnAdLeftApplication;
-            _banner.LoadAd();
-        }
-        
-        private void OnAdLoadFailed(LevelPlayAdError error)
-        {
-            SetStatus($"OnAdLoadFailed {error}");
-            
-            Adapter.OnExternalMediationRequestFailed(Adapter.AdType.Banner, _bidFloor, _calculatedBidFloor, error);
-            
-            if (IsNoFill(error.ErrorCode) && _bidFloor > 0)
-            {
-                _bidNoFillCount++;
-            
-                if (_bidNoFillCount == 1)
-                {
-                    _bidFloor *= 0.95;
-                    var configuration = WaterfallConfiguration.Builder().SetCeiling(_bidFloor * 1.5).SetFloor(_bidFloor).Build();
-                    IronSource.Agent.SetWaterfallConfiguration(configuration, AdFormat.Banner);
-
-                    LoadAd();
-                }
-                else if (_bidNoFillCount == 2)
-                {
-                    IronSource.Agent.SetWaterfallConfiguration(WaterfallConfiguration.Empty(), AdFormat.Banner);
-
-                    LoadAd();
-                }   
-            }
+            AddDemoGameEventExample();
         }
         
         private void OnHideClick()
@@ -112,28 +129,26 @@ namespace AdDemo
             _banner.DestroyAd();
         }
         
-        private void OnAdLoaded(LevelPlayAdInfo adInfo)
+        private IEnumerator LoadFallback()
         {
-            SetStatus($"OnAdLoaded {adInfo}");
+            yield return new WaitForSeconds(5f);
 
-            _bidNoFillCount = 0;
-            Adapter.OnExternalMediationRequestLoaded(Adapter.AdType.Banner, _bidFloor, _calculatedBidFloor, adInfo);
-            // might try increase the bid again
-            // if (_bidFloor < _calculatedBidFloor)
-            // {
-            //    _bidFloor = _calculatedBidFloor;
-            //}
+            if (_isLoadRequested)
+            {
+                _calculatedBidFloor = 0;
+                Load();
+            }
+        }
+
+        private IEnumerator ReTryLoad()
+        {
+            yield return new WaitForSeconds(5f);
+            
+            GetInsightsAndLoad();
         }
 
         private void OnAdClicked(LevelPlayAdInfo adInfo)
         {
-            var type = (Type) Random.Range(0, 7);
-            var status = (Status)Random.Range(0, 3);
-            var source = (Source)Random.Range(0, 7);
-            var value = Random.Range(0, 101);
-            Adapter.Record(new ProgressionEvent(type, status)
-                { _source = source, _name = $"progression_{type}_{status} {source} {value}", _value = value });
-            
             SetStatus($"OnAdClicked {adInfo}");
         }
 
@@ -166,6 +181,16 @@ namespace AdDemo
         {
             _status.text = status;
             Debug.Log(status);
+        }
+
+        private void AddDemoGameEventExample()
+        {
+            var type = (Type) Random.Range(0, 7);
+            var status = (Status)Random.Range(0, 3);
+            var source = (Source)Random.Range(0, 7);
+            var value = Random.Range(0, 101);
+            Adapter.Record(new ProgressionEvent(type, status)
+                { _source = source, _name = $"progression_{type}_{status} {source} {value}", _value = value });
         }
     }
 }

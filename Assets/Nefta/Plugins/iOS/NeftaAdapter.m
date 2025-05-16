@@ -6,7 +6,7 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-    typedef void (*OnBehaviourInsight)(const char *behaviourInsight);
+    typedef void (*OnBehaviourInsight)(int requestId, const char *behaviourInsight);
 
     void EnableLogging(bool enable);
     void NeftaPlugin_Init(const char *appId, bool sendImpressions, OnBehaviourInsight onBehaviourInsight);
@@ -14,7 +14,7 @@ extern "C" {
     void NeftaPlugin_OnExternalMediationRequest(int adType, const char *recommendedAdUnitId, double requestedFloorPrice, double calculatedFloorPrice, const char *adUnitId, double revenue, const char *precision, int status);
     const char * NeftaPlugin_GetNuid(bool present);
     void NeftaPlugin_SetContentRating(const char *rating);
-    void NeftaPlugin_GetBehaviourInsight(const char *insights);
+    void NeftaPlugin_GetBehaviourInsight(int requestId, const char *insights);
     void NeftaPlugin_SetOverride(const char *root);
 #ifdef __cplusplus
 }
@@ -28,9 +28,9 @@ void NeftaPlugin_EnableLogging(bool enable) {
 
 void NeftaPlugin_Init(const char *appId, bool sendImpressions, OnBehaviourInsight onBehaviourInsight) {
     _plugin = [ISNeftaCustomAdapter initWithAppId: [NSString stringWithUTF8String: appId] sendImpressions: sendImpressions];
-    _plugin.OnBehaviourInsightAsString = ^void(NSString * _Nonnull behaviourInsight) {
+    _plugin.OnBehaviourInsightAsString = ^void(NSInteger requestId, NSString * _Nonnull behaviourInsight) {
         const char *cBI = [behaviourInsight UTF8String];
-        onBehaviourInsight(cBI);
+        onBehaviourInsight((int)requestId, cBI);
     };
 }
 
@@ -51,8 +51,8 @@ void NeftaPlugin_SetContentRating(const char *rating) {
     [_plugin SetContentRatingWithRating: [NSString stringWithUTF8String: rating]];
 }
 
-void NeftaPlugin_GetBehaviourInsight(const char *insights) {
-    [_plugin GetBehaviourInsightWithString: [NSString stringWithUTF8String: insights]];
+void NeftaPlugin_GetBehaviourInsight(int requestId, const char *insights) {
+    [_plugin GetBehaviourInsightBridge: requestId string: [NSString stringWithUTF8String: insights]];
 }
 
 void NeftaPlugin_OnExternalMediationRequest(int adType, const char *recommendedAdUnitId, double requestedFloorPrice, double calculatedFloorPrice, const char *adUnitId, double revenue, const char *precision, int status) {

@@ -1,6 +1,8 @@
-using com.unity3d.mediation;
+using System.Collections;
+using System.Collections.Generic;
 using Nefta;
 using Nefta.Events;
+using Unity.Services.LevelPlay;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -8,12 +10,96 @@ namespace AdDemo
 {
     public class InterstitialController : MonoBehaviour
     {
+        
+#if UNITY_IOS
+        string AdUnitId = "q0z1act0tdckh4mg";
+#else
+        string AdUnitId = "wrzl86if1sqfxquc";
+#endif
+        private const string FloorPriceInsightName = "calculated_user_floor_price_interstitial";
+        
         [SerializeField] private Text _title;
         [SerializeField] private Button _load;
         [SerializeField] private Button _show;
         [SerializeField] private Text _status;
 
         private LevelPlayInterstitialAd _interstitial;
+        
+        private bool _isLoadRequested;
+        private double _bidFloor;
+        private double _calculatedBidFloor;
+        
+        private void GetInsightsAndLoad()
+        {
+            _isLoadRequested = true;
+            
+            Adapter.GetBehaviourInsight(new string[] { FloorPriceInsightName }, OnBehaviourInsight);
+            
+            StartCoroutine(LoadFallback());
+        }
+        
+        private void OnBehaviourInsight(Dictionary<string, Insight> insights)
+        {
+            _calculatedBidFloor = 0f;
+            if (insights.TryGetValue(FloorPriceInsightName, out var insight)) {
+                _calculatedBidFloor = insight._float;
+            }
+            
+            Debug.Log($"OnBehaviourInsight for Interstitial calculated bid floor: {_calculatedBidFloor}");
+            
+            if (_isLoadRequested)
+            {
+                Load();
+            }
+        }
+
+        private void Load()
+        {
+            _isLoadRequested = false;
+            
+            if (_calculatedBidFloor == 0)
+            {
+                IronSource.Agent.SetWaterfallConfiguration(WaterfallConfiguration.Empty(), AdFormat.Interstitial);
+            }
+            else
+            {
+                var configuration = WaterfallConfiguration.Builder()
+                    .SetFloor(_bidFloor)
+                    .SetCeiling(_bidFloor + 200) // when using SetFloor, SetCeiling has to be used as well
+                    .Build();
+                IronSource.Agent.SetWaterfallConfiguration(configuration, AdFormat.Interstitial);   
+            }
+            
+            _interstitial = new LevelPlayInterstitialAd(AdUnitId);
+            _interstitial.OnAdLoaded += OnAdLoaded;
+            _interstitial.OnAdLoadFailed += OnAdLoadFailed;
+            _interstitial.OnAdDisplayed += OnAdDisplayed;
+            _interstitial.OnAdDisplayFailed += OnAdDisplayFailed;
+            _interstitial.OnAdClicked += OnAdClicked;
+            _interstitial.OnAdInfoChanged += OnAdInfoChanged;
+            _interstitial.OnAdClosed += OnAdClosed;
+            _interstitial.LoadAd();
+            
+            SetStatus($"Loading Interstitial calculatedFloor: {_calculatedBidFloor}");
+        }
+        
+        private void OnAdLoadFailed(LevelPlayAdError error)
+        {
+            Adapter.OnExternalMediationRequestFailed(Adapter.AdType.Interstitial, _bidFloor, _calculatedBidFloor, error);
+            
+            SetStatus($"OnAdLoadFailed {error}");
+            
+            // or automatically retry with a delay
+            //StartCoroutine(ReTryLoad());
+        }
+        
+        private void OnAdLoaded(LevelPlayAdInfo info)
+        {
+            Adapter.OnExternalMediationRequestLoaded(Adapter.AdType.Interstitial, _bidFloor, _calculatedBidFloor, info);
+            
+            SetStatus($"OnAdLoaded {info}");
+            _show.interactable = true;
+        }
 
         public void Init()
         {
@@ -31,27 +117,9 @@ namespace AdDemo
 
         private void OnLoadClick()
         {
-            var category = (ResourceCategory) Random.Range(0, 9);
-            var method = (ReceiveMethod)Random.Range(0, 8);
-            var value = Random.Range(0, 101);
-            Adapter.Record(new ReceiveEvent(category) { _method = method, _name = $"receive_{category} {method} {value}", _value = value });
+            GetInsightsAndLoad();
 
-            string adUnitId = "wrzl86if1sqfxquc";
-#if UNITY_IOS
-            adUnitId = "q0z1act0tdckh4mg";
-#endif
-            
-            _interstitial = new LevelPlayInterstitialAd(adUnitId);
-            _interstitial.OnAdLoaded += OnAdLoaded;
-            _interstitial.OnAdLoadFailed += OnAdLoadFailed;
-            _interstitial.OnAdDisplayed += OnAdDisplayed;
-            _interstitial.OnAdDisplayFailed += OnAdDisplayFailed;
-            _interstitial.OnAdClicked += OnAdClicked;
-            _interstitial.OnAdInfoChanged += OnAdInfoChanged;
-            _interstitial.OnAdClosed += OnAdClosed;
-            _interstitial.LoadAd();
-            
-            SetStatus("Loading interstitial...");
+            AddDemoGameEventExample();
         }
         
         private void OnShowClick()
@@ -67,20 +135,23 @@ namespace AdDemo
                 SetStatus("Interstitial not ready");
             }
         }
-
-        private void OnAdLoaded(LevelPlayAdInfo info)
+        
+        private IEnumerator LoadFallback()
         {
-            SetStatus($"OnAdLoaded {info}");
-            _show.interactable = true;
-            
-            Adapter.OnExternalMediationRequestLoaded(Adapter.AdType.Interstitial, 1.3, 1.4, info);
+            yield return new WaitForSeconds(5f);
+
+            if (_isLoadRequested)
+            {
+                _calculatedBidFloor = 0;
+                Load();
+            }
         }
 
-        private void OnAdLoadFailed(LevelPlayAdError error)
+        private IEnumerator ReTryLoad()
         {
-            SetStatus($"OnAdLoadFailed {error}");
+            yield return new WaitForSeconds(5f);
             
-            Adapter.OnExternalMediationRequestFailed(Adapter.AdType.Interstitial, 1.5, 0.6, error);
+            GetInsightsAndLoad();
         }
         
         private void OnAdDisplayFailed(LevelPlayAdDisplayInfoError error)
@@ -112,6 +183,14 @@ namespace AdDemo
         {
             _status.text = status;
             Debug.Log(status);
+        }
+
+        private void AddDemoGameEventExample()
+        {
+            var category = (ResourceCategory) Random.Range(0, 9);
+            var method = (ReceiveMethod)Random.Range(0, 8);
+            var value = Random.Range(0, 101);
+            Adapter.Record(new ReceiveEvent(category) { _method = method, _name = $"receive_{category} {method} {value}", _value = value });
         }
     }
 }

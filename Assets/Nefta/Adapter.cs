@@ -9,7 +9,6 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Text;
 using System.Threading;
-using com.unity3d.mediation;
 using Nefta.Events;
 using UnityEngine;
 
@@ -36,14 +35,29 @@ namespace Nefta
             MatureAudience = 4
         }
         
+        private class InsightRequest
+        {
+            public int _id;
+            public SynchronizationContext _returnContext;
+            public OnBehaviourInsightCallback _callback;
+
+            public InsightRequest(OnBehaviourInsightCallback callback)
+            {
+                _id = _insightId;
+                _insightId++;
+                _returnContext = SynchronizationContext.Current;
+                _callback = callback;
+            }
+        }
+        
 #if UNITY_EDITOR
         private static NeftaPlugin _plugin;
 #elif UNITY_IOS
-        private delegate void OnBehaviourInsightDelegate(string behaviourInsight);
+        private delegate void OnBehaviourInsightDelegate(int requestId, string behaviourInsight);
 
         [MonoPInvokeCallback(typeof(OnBehaviourInsightDelegate))] 
-        private static void OnBehaviourInsight(string behaviourInsight) {
-            IOnBehaviourInsight(behaviourInsight);
+        private static void OnBehaviourInsight(int requestId, string behaviourInsight) {
+            IOnBehaviourInsight(requestId, behaviourInsight);
         }
 
         [DllImport ("__Internal")]
@@ -65,16 +79,27 @@ namespace Nefta
         private static extern void NeftaPlugin_SetContentRating(string rating);
         
         [DllImport ("__Internal")]
-        private static extern void NeftaPlugin_GetBehaviourInsight(string insights);
+        private static extern void NeftaPlugin_GetBehaviourInsight(int requestId, string insights);
         
         [DllImport ("__Internal")]
         private static extern void NeftaPlugin_SetOverride(string root);
 #elif UNITY_ANDROID
+        private static AndroidJavaClass _neftaPluginClass;
+        private static AndroidJavaClass NeftaPluginClass {
+            get
+            {
+                if (_neftaPluginClass == null)
+                {
+                    _neftaPluginClass = new AndroidJavaClass("com.nefta.sdk.NeftaPlugin");
+                }
+                return _neftaPluginClass;
+            }
+        }
         private static AndroidJavaObject _plugin;
 #endif
 
-        private static IEnumerable<String> _scheduledBehaviourInsight;
-        private static SynchronizationContext _threadContext;
+        private static List<InsightRequest> _insightRequests;
+        private static int _insightId;
         
         public static OnBehaviourInsightCallback BehaviourInsightCallback;
         
@@ -85,10 +110,7 @@ namespace Nefta
 #elif UNITY_IOS
             NeftaPlugin_EnableLogging(enable);
 #elif UNITY_ANDROID
-            using (AndroidJavaClass neftaPlugin = new AndroidJavaClass("com.nefta.sdk.NeftaPlugin"))
-            {
-                neftaPlugin.CallStatic("EnableLogging", enable);
-            }
+            NeftaPluginClass.CallStatic("EnableLogging", enable);
 #endif
         }
         
@@ -105,11 +127,12 @@ namespace Nefta
             AndroidJavaClass unityClass = new AndroidJavaClass("com.unity3d.player.UnityPlayer");
             var unityActivity = unityClass.GetStatic<AndroidJavaObject>("currentActivity");
 
-            AndroidJavaClass neftaPluginClass = new AndroidJavaClass("com.ironsource.adapters.custom.nefta.NeftaCustomAdapter");
-            _plugin = neftaPluginClass.CallStatic<AndroidJavaObject>("Init", unityActivity, appId, sendImpressions, new NeftaAdapterListener());
+            AndroidJavaClass neftaAdapterClass = new AndroidJavaClass("com.ironsource.adapters.custom.nefta.NeftaCustomAdapter");
+            _plugin = neftaAdapterClass.CallStatic<AndroidJavaObject>("Init", unityActivity, appId, sendImpressions, new NeftaAdapterListener());
 
             Application.focusChanged += OnFocusChanged;
 #endif
+            _insightRequests = new List<InsightRequest>();
         }
         
 #if !UNITY_EDITOR && UNITY_ANDROID
@@ -157,12 +180,27 @@ namespace Nefta
 #endif
         }
         
-        public static void OnExternalMediationRequestLoaded(AdType adType, double requestedFloorPrice, double calculatedFloorPrice, LevelPlayAdInfo adInfo)
+        public static void OnExternalMediationRequestLoaded(AdType adType, double requestedFloorPrice, double calculatedFloorPrice, com.unity3d.mediation.LevelPlayAdInfo adInfo)
         {
             OnExternalMediationRequest((int) adType, requestedFloorPrice, calculatedFloorPrice, adInfo.AdUnitId, adInfo.Revenue ?? 0, adInfo.Precision, 1);
         }
+        
+        public static void OnExternalMediationRequestLoaded(AdType adType, double requestedFloorPrice, double calculatedFloorPrice, Unity.Services.LevelPlay.LevelPlayAdInfo adInfo)
+        {
+            OnExternalMediationRequest((int) adType, requestedFloorPrice, calculatedFloorPrice, adInfo.AdUnitId, adInfo.Revenue ?? 0, adInfo.Precision, 1);
+        }
+        
+        public static void OnExternalMediationRequestFailed(AdType adType, double requestedFloorPrice, double calculatedFloorPrice, com.unity3d.mediation.LevelPlayAdError error)
+        {
+            var status = 0;
+            if (error.ErrorCode == 509 || error.ErrorCode == 606 || error.ErrorCode == 706 || error.ErrorCode == 1058 || error.ErrorCode == 1158)
+            {
+                status = 2;
+            }
+            OnExternalMediationRequest((int) adType, requestedFloorPrice, calculatedFloorPrice, error.AdUnitId, -1, null, status);
+        }
 
-        public static void OnExternalMediationRequestFailed(AdType adType, double requestedFloorPrice, double calculatedFloorPrice, LevelPlayAdError error)
+        public static void OnExternalMediationRequestFailed(AdType adType, double requestedFloorPrice, double calculatedFloorPrice, Unity.Services.LevelPlay.LevelPlayAdError error)
         {
             var status = 0;
             if (error.ErrorCode == 509 || error.ErrorCode == 606 || error.ErrorCode == 706 || error.ErrorCode == 1058 || error.ErrorCode == 1158)
@@ -183,14 +221,10 @@ namespace Nefta
 #endif
         }
         
-        public static void GetBehaviourInsight(string[] insightList)
+        public static void GetBehaviourInsight(string[] insightList, OnBehaviourInsightCallback callback=null)
         {
-            if (_scheduledBehaviourInsight != null)
-            {
-                return;
-            }
-            _scheduledBehaviourInsight = insightList;
-            _threadContext = SynchronizationContext.Current;
+            var request = new InsightRequest(callback ?? BehaviourInsightCallback);
+            _insightRequests.Add(request);
             
             StringBuilder sb = new StringBuilder();
             bool isFirst = true;
@@ -208,11 +242,11 @@ namespace Nefta
             }
             var insights = sb.ToString();
 #if UNITY_EDITOR
-            _plugin.GetBehaviourInsight(insights);
+            _plugin.GetBehaviourInsight(request._id, insights);
 #elif UNITY_IOS
-            NeftaPlugin_GetBehaviourInsight(insights);
+            NeftaPlugin_GetBehaviourInsight(request._id, insights);
 #elif UNITY_ANDROID
-            _plugin.Call("GetBehaviourInsightWithString", insights);
+            _plugin.Call("GetBehaviourInsightBridge", request._id, insights);
 #endif
         }
         
@@ -263,112 +297,118 @@ namespace Nefta
 #elif UNITY_IOS
             NeftaPlugin_SetOverride(root);
 #elif UNITY_ANDROID
-            using (AndroidJavaClass neftaPlugin = new AndroidJavaClass("com.nefta.sdk.NeftaPlugin"))
-            {
-                neftaPlugin.CallStatic("SetOverride", root);
-            }
+            _neftaPluginClass.CallStatic("SetOverride", root);
 #endif
         }
         
-        internal static void IOnBehaviourInsight(string bi)
+        internal static void IOnBehaviourInsight(int id, string bi)
         {
             var behaviourInsight = new Dictionary<string, Insight>();
-            try
+            if (bi != null)
             {
-                var start = bi.IndexOf("s\":", StringComparison.InvariantCulture) + 5;
-
-                while (start != -1 && start < bi.Length)
+                try
                 {
-                    var end = bi.IndexOf("\":{", start, StringComparison.InvariantCulture);
-                    var key = bi.Substring(start, end - start);
-                    string status = null;
-                    long intVal = 0;
-                    double floatVal = 0;
-                    string stringVal = null;
+                    var start = bi.IndexOf("s\":", StringComparison.InvariantCulture) + 5;
 
-                    start = end + 4;
-                    for (var f = 0; f < 4; f++)
+                    while (start != -1 && start < bi.Length)
                     {
-                        if (bi[start] == 's' && bi[start + 2] == 'a')
+                        var end = bi.IndexOf("\":{", start, StringComparison.InvariantCulture);
+                        var key = bi.Substring(start, end - start);
+                        long intVal = 0;
+                        double floatVal = 0;
+                        string stringVal = null;
+
+                        start = end + 4;
+                        for (var f = 0; f < 4; f++)
                         {
-                            start += 9;
-                            end = bi.IndexOf("\"", start, StringComparison.InvariantCulture);
-                            status = bi.Substring(start, end - start);
-                            end++;
-                        }
-                        else if (bi[start] == 'f')
-                        {
-                            start += 11;
-                            end = start + 1;
-                            for (; end < bi.Length; end++)
+                            if (bi[start] == 'f')
                             {
-                                if (bi[end] == ',' || bi[end] == '}')
+                                start += 11;
+                                end = start + 1;
+                                for (; end < bi.Length; end++)
                                 {
-                                    break;
+                                    if (bi[end] == ',' || bi[end] == '}')
+                                    {
+                                        break;
+                                    }
                                 }
+
+                                var doubleString = bi.Substring(start, end - start);
+                                floatVal = Double.Parse(doubleString, NumberStyles.Float, CultureInfo.InvariantCulture);
+                            }
+                            else if (bi[start] == 'i')
+                            {
+                                start += 9;
+                                end = start + 1;
+                                for (; end < bi.Length; end++)
+                                {
+                                    if (bi[end] == ',' || bi[end] == '}')
+                                    {
+                                        break;
+                                    }
+                                }
+
+                                var intString = bi.Substring(start, end - start);
+                                intVal = long.Parse(intString, NumberStyles.Number, CultureInfo.InvariantCulture);
+                            }
+                            else if (bi[start] == 's' && bi[start + 2] == 'r')
+                            {
+                                start += 13;
+                                end = bi.IndexOf("\"", start, StringComparison.InvariantCulture);
+                                stringVal = bi.Substring(start, end - start);
+                                end++;
                             }
 
-                            var doubleString = bi.Substring(start, end - start);
-                            floatVal = Double.Parse(doubleString, NumberStyles.Float, CultureInfo.InvariantCulture);
-                        }
-                        else if (bi[start] == 'i')
-                        {
-                            start += 9;
-                            end = start + 1;
-                            for (; end < bi.Length; end++)
+                            if (bi[end] == '}')
                             {
-                                if (bi[end] == ',' || bi[end] == '}')
-                                {
-                                    break;
-                                }
+                                break;
                             }
 
-                            var intString = bi.Substring(start, end - start);
-                            intVal = long.Parse(intString, NumberStyles.Number, CultureInfo.InvariantCulture);
-                        }
-                        else if (bi[start] == 's')
-                        {
-                            start += 13;
-                            end = bi.IndexOf("\"", start, StringComparison.InvariantCulture);
-                            stringVal = bi.Substring(start, end - start);
-                            end++;
+                            start = end + 2;
                         }
 
-                        if (bi[end] == '}')
+                        behaviourInsight[key] = new Insight(intVal, floatVal, stringVal);
+
+                        if (bi[end + 1] == '}')
                         {
                             break;
                         }
 
-                        start = end + 2;
+                        start = end + 3;
                     }
-
-                    behaviourInsight[key] = new Insight(status, intVal, floatVal, stringVal);
-
-                    if (bi[end + 1] == '}')
-                    {
-                        break;
-                    }
-
-                    start = end + 3;
                 }
-            }
-            catch (Exception)
-            {
-                // ignored
+                catch (Exception)
+                {
+                    // ignored
+                }
             }
 
             try
             {
-                foreach (var insightName in _scheduledBehaviourInsight)
+                InsightRequest request = null;
+                foreach (var iR in _insightRequests)
                 {
-                    if (!behaviourInsight.ContainsKey(insightName))
+                    if (iR._id == id)
                     {
-                        behaviourInsight.Add(insightName, new Insight("Error retrieving key", 0, 0, null));
-                    }
+                        request = iR;
+                        break;
+                    }   
+                }
+                if (request == null)
+                {
+                    return;
                 }
                 
-                _scheduledBehaviourInsight = null;
-                _threadContext.Post(_ => BehaviourInsightCallback(behaviourInsight), null);
+                request._returnContext.Post(_ => request._callback(behaviourInsight), null);
+
+                for (var i = _insightRequests.Count - 1; i >= 0; i--)
+                {
+                    if (_insightRequests[i]._id == id)
+                    {
+                        _insightRequests.RemoveAt(i);
+                        break;
+                    }
+                }
             }
             catch (Exception)
             {

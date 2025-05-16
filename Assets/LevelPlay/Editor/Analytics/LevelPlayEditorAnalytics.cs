@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Unity.Services.LevelPlay;
 using UnityEditor;
 
 namespace Unity.Services.LevelPlay.Editor
@@ -103,6 +104,30 @@ namespace Unity.Services.LevelPlay.Editor
                 });
         }
 
+        public void SendInteractWithSkanIdCheckBox(bool action)
+        {
+            SendEvent(k_EventName,
+                new EventBody
+                {
+                    component = LevelPlayComponent.LevelPlayNetworkManager,
+                    action = action? LevelPlayAction.EnableSkAdNetworkId : LevelPlayAction.DisableSkAdNetworkId,
+                    package = Constants.PackageAnalyticsIdentifier,
+                    package_ver = m_PackageVersion
+                });
+        }
+
+        public void SendFailedToAddSkAdNetworkId(string adapterName)
+        {
+            SendEvent(k_EventName,
+                new EventBody
+                {
+                    component = LevelPlayComponent.PostBuild,
+                    action = $"{LevelPlayAction.FailedToAddSkanId}_{adapterName}",
+                    package = Constants.PackageAnalyticsIdentifier,
+                    package_ver = m_PackageVersion
+                });
+        }
+
         private void SendEvent(string eventName, EventBody body)
         {
             if (!m_ServicesCoreIsReady)
@@ -128,6 +153,8 @@ namespace Unity.Services.LevelPlay.Editor
 
             public const string UpmPackage = "upm";
             public const string UnityPackage = ".unitypackage";
+
+            public const string PostBuild = "Post_Build";
         }
 
         internal static class LevelPlayAction
@@ -144,6 +171,11 @@ namespace Unity.Services.LevelPlay.Editor
             public const string NewSession = "NewSession";
             public const string Install = "Install";
             public const string Update = "Update";
+
+            public const string EnableSkAdNetworkId = "Enable_SkAdNetworkId";
+            public const string DisableSkAdNetworkId = "Disable_SkAdNetworkId";
+
+            public const string FailedToAddSkanId = "FailedToAddSkanId";
         }
     }
 

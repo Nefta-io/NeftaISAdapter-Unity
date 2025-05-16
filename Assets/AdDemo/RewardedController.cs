@@ -1,6 +1,8 @@
-using com.unity3d.mediation;
+using System.Collections;
+using System.Collections.Generic;
 using Nefta;
 using Nefta.Events;
+using Unity.Services.LevelPlay;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -8,12 +10,96 @@ namespace AdDemo
 {
     public class RewardedController : MonoBehaviour
     {
+#if UNITY_IOS
+        string AdUnitId = "doucurq8qtlnuz7p";
+#else
+        string AdUnitId = "kftiv52431x91zuk";
+#endif
+        private const string FloorPriceInsightName = "calculated_user_floor_price_rewarded";
+        
         [SerializeField] private Text _title;
         [SerializeField] private Button _load;
         [SerializeField] private Button _show;
         [SerializeField] private Text _status;
         
         private LevelPlayRewardedAd _rewarded;
+        
+        private bool _isLoadRequested;
+        private double _bidFloor;
+        private double _calculatedBidFloor;
+        
+        private void GetInsightsAndLoad()
+        {
+            _isLoadRequested = true;
+            
+            Adapter.GetBehaviourInsight(new string[] { FloorPriceInsightName }, OnBehaviourInsight);
+            
+            StartCoroutine(LoadFallback());
+        }
+        
+        private void OnBehaviourInsight(Dictionary<string, Insight> insights)
+        {
+            _calculatedBidFloor = 0f;
+            if (insights.TryGetValue(FloorPriceInsightName, out var insight)) {
+                _calculatedBidFloor = insight._float;
+            }
+            
+            Debug.Log($"OnBehaviourInsight for Rewarded calculated bid floor: {_calculatedBidFloor}");
+            
+            if (_isLoadRequested)
+            {
+                Load();
+            }
+        }
+
+        private void Load()
+        {
+            _isLoadRequested = false;
+            
+            if (_calculatedBidFloor == 0)
+            {
+                IronSource.Agent.SetWaterfallConfiguration(WaterfallConfiguration.Empty(), AdFormat.RewardedVideo);
+            }
+            else
+            {
+                var configuration = WaterfallConfiguration.Builder()
+                    .SetFloor(_bidFloor)
+                    .SetCeiling(_bidFloor + 200) // when using SetFloor, SetCeiling has to be used as well
+                    .Build();
+                IronSource.Agent.SetWaterfallConfiguration(configuration, AdFormat.RewardedVideo);   
+            }
+            
+            _rewarded = new LevelPlayRewardedAd(AdUnitId);
+            _rewarded.OnAdLoaded += OnAdLoaded;
+            _rewarded.OnAdLoadFailed += OnAdLoadFailed;
+            _rewarded.OnAdDisplayed += OnAdDisplayed;
+            _rewarded.OnAdDisplayFailed += OnAdDisplayFailed;
+            _rewarded.OnAdRewarded += OnAdRewarded;
+            _rewarded.OnAdClicked += OnAdClicked;
+            _rewarded.OnAdInfoChanged += OnAdInfoChanged;
+            _rewarded.OnAdClosed += OnAdClosed;
+            _rewarded.LoadAd();
+            
+            SetStatus($"Loading Rewarded calculatedFloor: {_calculatedBidFloor}");
+        }
+        
+        private void OnAdLoadFailed(LevelPlayAdError error)
+        {
+            Adapter.OnExternalMediationRequestFailed(Adapter.AdType.Rewarded, _bidFloor, _calculatedBidFloor, error);
+            
+            SetStatus($"OnAdLoadFailed {error}");
+            
+            // or automatically retry with a delay 
+            //StartCoroutine(ReTryLoad());
+        }
+        
+        private void OnAdLoaded(LevelPlayAdInfo info)
+        {
+            Adapter.OnExternalMediationRequestLoaded(Adapter.AdType.Rewarded, _bidFloor, _calculatedBidFloor, info);
+            
+            SetStatus($"OnAdLoaded {info}");
+            _show.interactable = true;
+        }
         
         public void Init()
         {
@@ -31,28 +117,9 @@ namespace AdDemo
         
         private void OnLoadClick()
         {
-            var category = (ResourceCategory) Random.Range(0, 9);
-            var method = (SpendMethod)Random.Range(0, 8);
-            var value = Random.Range(0, 101);
-            Adapter.Record(new SpendEvent(category) { _method = method, _name = $"spend_{category} {method} {value}", _value = value });
-            
-            string adUnitId = "kftiv52431x91zuk";
-#if UNITY_IOS
-            adUnitId = "doucurq8qtlnuz7p";
-#endif
+            GetInsightsAndLoad();
 
-            _rewarded = new LevelPlayRewardedAd(adUnitId);
-            _rewarded.OnAdLoaded += OnAdLoaded;
-            _rewarded.OnAdLoadFailed += OnAdLoadFailed;
-            _rewarded.OnAdDisplayed += OnAdDisplayed;
-            _rewarded.OnAdDisplayFailed += OnAdDisplayFailed;
-            _rewarded.OnAdRewarded += OnAdRewarded;
-            _rewarded.OnAdClicked += OnAdClicked;
-            _rewarded.OnAdInfoChanged += OnAdInfoChanged;
-            _rewarded.OnAdClosed += OnAdClosed;
-            _rewarded.LoadAd();
-            
-            SetStatus("Loading rewarded...");
+            AddDemoGameEventExample();
         }
         
         private void OnShowClick()
@@ -69,20 +136,22 @@ namespace AdDemo
             }
         }
         
-        private void OnAdLoaded(LevelPlayAdInfo info)
+        private IEnumerator LoadFallback()
         {
-            SetStatus($"OnAdLoaded {info}");
-            _show.interactable = true;
-            
-            Adapter.OnExternalMediationRequestLoaded(Adapter.AdType.Rewarded, 2.3, 2.4, info);
+            yield return new WaitForSeconds(5f);
+
+            if (_isLoadRequested)
+            {
+                _calculatedBidFloor = 0;
+                Load();
+            }
         }
-        
-        private void OnAdLoadFailed(LevelPlayAdError error)
+
+        private IEnumerator ReTryLoad()
         {
-            SetStatus($"OnAdLoadFailed {error}");
-            _show.interactable = true;
+            yield return new WaitForSeconds(5f);
             
-            Adapter.OnExternalMediationRequestFailed(Adapter.AdType.Rewarded, 2.5, 2.6, error);
+            GetInsightsAndLoad();
         }
         
         private void OnAdDisplayFailed(LevelPlayAdDisplayInfoError error)
@@ -120,6 +189,13 @@ namespace AdDemo
             _status.text = status;
             Debug.Log(status);
         }
-        
+
+        private void AddDemoGameEventExample()
+        {
+            var category = (ResourceCategory) Random.Range(0, 9);
+            var method = (SpendMethod)Random.Range(0, 8);
+            var value = Random.Range(0, 101);
+            Adapter.Record(new SpendEvent(category) { _method = method, _name = $"spend_{category} {method} {value}", _value = value });
+        }
     }
 }
