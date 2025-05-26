@@ -70,7 +70,7 @@ namespace Nefta
         private static extern void NeftaPlugin_Record(int type, int category, int subCategory, string nameValue, long value, string customPayload);
 
         [DllImport ("__Internal")]
-        private static extern void NeftaPlugin_OnExternalMediationRequest(int adType, string recommendedAdUnitId, double requestedFloorPrice, double calculatedFloorPrice, string adUnitId, double revenue, string precision, int status);
+        private static extern void NeftaPlugin_OnExternalMediationRequest(int adType, string recommendedAdUnitId, double requestedFloorPrice, double calculatedFloorPrice, string adUnitId, double revenue, string precision, int status, string providerStatus, string networkStatus);
 
         [DllImport ("__Internal")]
         private static extern string NeftaPlugin_GetNuid(bool present);
@@ -182,12 +182,12 @@ namespace Nefta
         
         public static void OnExternalMediationRequestLoaded(AdType adType, double requestedFloorPrice, double calculatedFloorPrice, com.unity3d.mediation.LevelPlayAdInfo adInfo)
         {
-            OnExternalMediationRequest((int) adType, requestedFloorPrice, calculatedFloorPrice, adInfo.AdUnitId, adInfo.Revenue ?? 0, adInfo.Precision, 1);
+            OnExternalMediationRequest((int) adType, requestedFloorPrice, calculatedFloorPrice, adInfo.AdUnitId, adInfo.Revenue ?? 0, adInfo.Precision, 1, null, null);
         }
         
         public static void OnExternalMediationRequestLoaded(AdType adType, double requestedFloorPrice, double calculatedFloorPrice, Unity.Services.LevelPlay.LevelPlayAdInfo adInfo)
         {
-            OnExternalMediationRequest((int) adType, requestedFloorPrice, calculatedFloorPrice, adInfo.AdUnitId, adInfo.Revenue ?? 0, adInfo.Precision, 1);
+            OnExternalMediationRequest((int) adType, requestedFloorPrice, calculatedFloorPrice, adInfo.AdUnitId, adInfo.Revenue ?? 0, adInfo.Precision, 1, null, null);
         }
         
         public static void OnExternalMediationRequestFailed(AdType adType, double requestedFloorPrice, double calculatedFloorPrice, com.unity3d.mediation.LevelPlayAdError error)
@@ -197,7 +197,7 @@ namespace Nefta
             {
                 status = 2;
             }
-            OnExternalMediationRequest((int) adType, requestedFloorPrice, calculatedFloorPrice, error.AdUnitId, -1, null, status);
+            OnExternalMediationRequest((int) adType, requestedFloorPrice, calculatedFloorPrice, error.AdUnitId, -1, null, status, error.ErrorCode.ToString(CultureInfo.InvariantCulture), null);
         }
 
         public static void OnExternalMediationRequestFailed(AdType adType, double requestedFloorPrice, double calculatedFloorPrice, Unity.Services.LevelPlay.LevelPlayAdError error)
@@ -207,17 +207,17 @@ namespace Nefta
             {
                 status = 2;
             }
-            OnExternalMediationRequest((int) adType, requestedFloorPrice, calculatedFloorPrice, error.AdUnitId, -1, null, status);
+            OnExternalMediationRequest((int) adType, requestedFloorPrice, calculatedFloorPrice, error.AdUnitId, -1, null, status, error.ErrorCode.ToString(CultureInfo.InvariantCulture), null);
         }
 
-        private static void OnExternalMediationRequest(int adType, double requestedFloorPrice, double calculatedFloorPrice, string adUnitId, double revenue, string precision, int status)
+        private static void OnExternalMediationRequest(int adType, double requestedFloorPrice, double calculatedFloorPrice, string adUnitId, double revenue, string precision, int status, string providerStatus, string networkStatus)
         {
 #if UNITY_EDITOR
-            _plugin.OnExternalMediationRequest("ironsource-levelplay", adType, null, requestedFloorPrice, calculatedFloorPrice, adUnitId, revenue, precision, status);
+            _plugin.OnExternalMediationRequest("ironsource-levelplay", adType, null, requestedFloorPrice, calculatedFloorPrice, adUnitId, revenue, precision, status, providerStatus, networkStatus);
 #elif UNITY_IOS
-            NeftaPlugin_OnExternalMediationRequest(adType, null, requestedFloorPrice, calculatedFloorPrice, adUnitId, revenue, precision, status);
+            NeftaPlugin_OnExternalMediationRequest(adType, null, requestedFloorPrice, calculatedFloorPrice, adUnitId, revenue, precision, status, providerStatus, networkStatus);
 #elif UNITY_ANDROID
-            _plugin.CallStatic("OnExternalMediationRequest", "ironsource-levelplay", adType, null, requestedFloorPrice, calculatedFloorPrice, adUnitId, revenue, precision, status);
+            _plugin.CallStatic("OnExternalMediationRequest", "ironsource-levelplay", adType, null, requestedFloorPrice, calculatedFloorPrice, adUnitId, revenue, precision, status, providerStatus, networkStatus);
 #endif
         }
         
