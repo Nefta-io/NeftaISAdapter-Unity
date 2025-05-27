@@ -26,7 +26,7 @@ namespace AdDemo
         private LevelPlayInterstitialAd _interstitial;
         
         private bool _isLoadRequested;
-        private double _bidFloor;
+        private double _requestedFloorPrice;
         private double _calculatedBidFloor;
         
         private void GetInsightsAndLoad()
@@ -59,13 +59,15 @@ namespace AdDemo
             
             if (_calculatedBidFloor == 0)
             {
+                _requestedFloorPrice = 0;
                 IronSource.Agent.SetWaterfallConfiguration(WaterfallConfiguration.Empty(), AdFormat.Interstitial);
             }
             else
             {
+                _requestedFloorPrice = _calculatedBidFloor;
                 var configuration = WaterfallConfiguration.Builder()
-                    .SetFloor(_bidFloor)
-                    .SetCeiling(_bidFloor + 200) // when using SetFloor, SetCeiling has to be used as well
+                    .SetFloor(_requestedFloorPrice)
+                    .SetCeiling(_requestedFloorPrice + 200) // when using SetFloor, SetCeiling has to be used as well
                     .Build();
                 IronSource.Agent.SetWaterfallConfiguration(configuration, AdFormat.Interstitial);   
             }
@@ -80,25 +82,31 @@ namespace AdDemo
             _interstitial.OnAdClosed += OnAdClosed;
             _interstitial.LoadAd();
             
-            SetStatus($"Loading Interstitial calculatedFloor: {_calculatedBidFloor}");
+            SetStatus($"Loading Interstitial calculatedFloor: {_calculatedBidFloor}, requested: {_requestedFloorPrice}");
         }
         
         private void OnAdLoadFailed(LevelPlayAdError error)
         {
-            Adapter.OnExternalMediationRequestFailed(Adapter.AdType.Interstitial, _bidFloor, _calculatedBidFloor, error);
+            Adapter.OnExternalMediationRequestFailed(Adapter.AdType.Interstitial, _requestedFloorPrice, _calculatedBidFloor, error);
             
             SetStatus($"OnAdLoadFailed {error}");
             
-            // or automatically retry with a delay
-            //StartCoroutine(ReTryLoad());
+            StartCoroutine(ReTryLoad());
         }
         
         private void OnAdLoaded(LevelPlayAdInfo info)
         {
-            Adapter.OnExternalMediationRequestLoaded(Adapter.AdType.Interstitial, _bidFloor, _calculatedBidFloor, info);
+            Adapter.OnExternalMediationRequestLoaded(Adapter.AdType.Interstitial, _requestedFloorPrice, _calculatedBidFloor, info);
             
             SetStatus($"OnAdLoaded {info}");
             _show.interactable = true;
+        }
+        
+        private IEnumerator ReTryLoad()
+        {
+            yield return new WaitForSeconds(5f);
+            
+            GetInsightsAndLoad();
         }
 
         public void Init()
@@ -145,13 +153,6 @@ namespace AdDemo
                 _calculatedBidFloor = 0;
                 Load();
             }
-        }
-
-        private IEnumerator ReTryLoad()
-        {
-            yield return new WaitForSeconds(5f);
-            
-            GetInsightsAndLoad();
         }
         
         private void OnAdDisplayFailed(LevelPlayAdDisplayInfoError error)

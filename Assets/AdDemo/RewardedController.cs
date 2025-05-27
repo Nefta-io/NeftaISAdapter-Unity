@@ -25,7 +25,7 @@ namespace AdDemo
         private LevelPlayRewardedAd _rewarded;
         
         private bool _isLoadRequested;
-        private double _bidFloor;
+        private double _requestedBidFloor;
         private double _calculatedBidFloor;
         
         private void GetInsightsAndLoad()
@@ -58,13 +58,15 @@ namespace AdDemo
             
             if (_calculatedBidFloor == 0)
             {
+                _requestedBidFloor = 0;
                 IronSource.Agent.SetWaterfallConfiguration(WaterfallConfiguration.Empty(), AdFormat.RewardedVideo);
             }
             else
             {
+                _requestedBidFloor = _calculatedBidFloor;
                 var configuration = WaterfallConfiguration.Builder()
-                    .SetFloor(_bidFloor)
-                    .SetCeiling(_bidFloor + 200) // when using SetFloor, SetCeiling has to be used as well
+                    .SetFloor(_requestedBidFloor)
+                    .SetCeiling(_requestedBidFloor + 200) // when using SetFloor, SetCeiling has to be used as well
                     .Build();
                 IronSource.Agent.SetWaterfallConfiguration(configuration, AdFormat.RewardedVideo);   
             }
@@ -85,20 +87,26 @@ namespace AdDemo
         
         private void OnAdLoadFailed(LevelPlayAdError error)
         {
-            Adapter.OnExternalMediationRequestFailed(Adapter.AdType.Rewarded, _bidFloor, _calculatedBidFloor, error);
+            Adapter.OnExternalMediationRequestFailed(Adapter.AdType.Rewarded, _requestedBidFloor, _calculatedBidFloor, error);
             
             SetStatus($"OnAdLoadFailed {error}");
             
-            // or automatically retry with a delay 
-            //StartCoroutine(ReTryLoad());
+            StartCoroutine(ReTryLoad());
         }
         
         private void OnAdLoaded(LevelPlayAdInfo info)
         {
-            Adapter.OnExternalMediationRequestLoaded(Adapter.AdType.Rewarded, _bidFloor, _calculatedBidFloor, info);
+            Adapter.OnExternalMediationRequestLoaded(Adapter.AdType.Rewarded, _requestedBidFloor, _calculatedBidFloor, info);
             
             SetStatus($"OnAdLoaded {info}");
             _show.interactable = true;
+        }
+        
+        private IEnumerator ReTryLoad()
+        {
+            yield return new WaitForSeconds(5f);
+            
+            GetInsightsAndLoad();
         }
         
         public void Init()
@@ -145,13 +153,6 @@ namespace AdDemo
                 _calculatedBidFloor = 0;
                 Load();
             }
-        }
-
-        private IEnumerator ReTryLoad()
-        {
-            yield return new WaitForSeconds(5f);
-            
-            GetInsightsAndLoad();
         }
         
         private void OnAdDisplayFailed(LevelPlayAdDisplayInfoError error)

@@ -25,7 +25,7 @@ namespace AdDemo
         private LevelPlayBannerAd _banner;
 
         private bool _isLoadRequested;
-        private double _bidFloor;
+        private double _requestedBidFloor;
         private double _calculatedBidFloor;
         
         private void GetInsightsAndLoad()
@@ -58,13 +58,15 @@ namespace AdDemo
             
             if (_calculatedBidFloor == 0)
             {
+                _requestedBidFloor = 0;
                 IronSource.Agent.SetWaterfallConfiguration(WaterfallConfiguration.Empty(), AdFormat.Banner);
             }
             else
             {
+                _requestedBidFloor = _calculatedBidFloor;
                 var configuration = WaterfallConfiguration.Builder()
-                    .SetFloor(_bidFloor)
-                    .SetCeiling(_bidFloor + 200) // when using SetFloor, SetCeiling has to be used as well
+                    .SetFloor(_requestedBidFloor)
+                    .SetCeiling(_requestedBidFloor + 200) // when using SetFloor, SetCeiling has to be used as well
                     .Build();
                 IronSource.Agent.SetWaterfallConfiguration(configuration, AdFormat.Banner);   
             }
@@ -85,7 +87,7 @@ namespace AdDemo
         
         private void OnAdLoadFailed(LevelPlayAdError error)
         {
-            Adapter.OnExternalMediationRequestFailed(Adapter.AdType.Banner, _bidFloor, _calculatedBidFloor, error);
+            Adapter.OnExternalMediationRequestFailed(Adapter.AdType.Banner, _requestedBidFloor, _calculatedBidFloor, error);
             
             SetStatus($"OnAdLoadFailed {error}");
             
@@ -94,9 +96,16 @@ namespace AdDemo
         
         private void OnAdLoaded(LevelPlayAdInfo adInfo)
         {
-            Adapter.OnExternalMediationRequestLoaded(Adapter.AdType.Banner, _bidFloor, _calculatedBidFloor, adInfo);
+            Adapter.OnExternalMediationRequestLoaded(Adapter.AdType.Banner, _requestedBidFloor, _calculatedBidFloor, adInfo);
             
             SetStatus($"OnAdLoaded {adInfo}");
+        }
+        
+        private IEnumerator ReTryLoad()
+        {
+            yield return new WaitForSeconds(5f);
+            
+            GetInsightsAndLoad();
         }
 
         public void Init()
@@ -138,13 +147,6 @@ namespace AdDemo
                 _calculatedBidFloor = 0;
                 Load();
             }
-        }
-
-        private IEnumerator ReTryLoad()
-        {
-            yield return new WaitForSeconds(5f);
-            
-            GetInsightsAndLoad();
         }
 
         private void OnAdClicked(LevelPlayAdInfo adInfo)
