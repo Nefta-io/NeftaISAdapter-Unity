@@ -43,7 +43,8 @@ namespace Nefta
 
             public InsightRequest(OnBehaviourInsightCallback callback)
             {
-                _id = _insightId;
+                _id = Interlocked.CompareExchange(ref _insightId, 0, 0);
+                Interlocked.Increment(ref _insightId);
                 _insightId++;
                 _returnContext = SynchronizationContext.Current;
                 _callback = callback;
