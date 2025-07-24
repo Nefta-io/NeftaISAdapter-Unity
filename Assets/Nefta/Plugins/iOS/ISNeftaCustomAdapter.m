@@ -10,15 +10,17 @@
 #import "ISNeftaCustomInterstitial.h"
 #import "ISNeftaCustomRewardedVideo.h"
 
+#import <os/log.h>
+
 NSString * const _mediationProvider = @"ironsource-levelplay";
 
 @implementation ISNeftaCustomAdapter
 
-+(void) OnExternalMediationRequestLoad:(AdType)adType requestedFloorPrice:(double)requestedFloorPrice calculatedFloorPrice:(double)calculatedFloorPrice adInfo:(LPMAdInfo *)adInfo {
-    [NeftaPlugin OnExternalMediationRequest: _mediationProvider adType: adType recommendedAdUnitId: nil requestedFloorPrice: requestedFloorPrice calculatedFloorPrice: calculatedFloorPrice adUnitId: adInfo.adUnitId revenue: adInfo.revenue.doubleValue precision: adInfo.precision status: 1 providerStatus: nil networkStatus: nil];
++(void) OnExternalMediationRequestLoad:(AdType)adType usedInsight:(AdInsight * _Nullable)usedInsight requestedFloorPrice:(double)requestedFloorPrice adInfo:(LPMAdInfo *)adInfo {
+    [ISNeftaCustomAdapter OnExternalMediationRequest: adType insight: usedInsight requestedFloorPrice: requestedFloorPrice adUnitId: adInfo.adUnitId revenue: adInfo.revenue.doubleValue precision: adInfo.precision status: 1 providerStatus: nil];
 }
 
-+(void) OnExternalMediationRequestFail:(AdType)adType requestedFloorPrice:(double)requestedFloorPrice calculatedFloorPrice:(double)calculatedFloorPrice adUnitId:(NSString *)adUnitId error:(NSError *)error {
++(void) OnExternalMediationRequestFail:(AdType)adType usedInsight:(AdInsight * _Nullable)usedInsight requestedFloorPrice:(double)requestedFloorPrice adUnitId:(NSString * _Nonnull)adUnitId error:(NSError *)error {
     int status = 0;
     if (error.code == ERROR_CODE_NO_ADS_TO_SHOW ||
         error.code == ERROR_BN_LOAD_NO_FILL ||
@@ -28,7 +30,19 @@ NSString * const _mediationProvider = @"ironsource-levelplay";
         status = 2;
     }
     NSString *providerStatus = [NSString stringWithFormat:@"%ld", error.code];
-    [NeftaPlugin OnExternalMediationRequest: _mediationProvider adType: adType recommendedAdUnitId: nil requestedFloorPrice: requestedFloorPrice calculatedFloorPrice: calculatedFloorPrice adUnitId: adUnitId revenue: -1 precision: nil status: status providerStatus: providerStatus networkStatus: nil];
+    [ISNeftaCustomAdapter OnExternalMediationRequest: adType insight:usedInsight requestedFloorPrice: requestedFloorPrice adUnitId: adUnitId revenue: -1 precision: nil status: status providerStatus: providerStatus];
+}
+
++(void)OnExternalMediationRequest:(AdType) adType insight:(AdInsight * _Nullable)insight requestedFloorPrice:(double)requestedFloorPrice adUnitId:(NSString * _Nonnull)adUnitId revenue:(double)revenue precision:(NSString * _Nullable)precision status:(int)status providerStatus:(NSString * _Nullable)providerStatus {
+    double calculatedFloorPrice = 0;
+    if (insight != nil) {
+        calculatedFloorPrice = insight._floorPrice;
+        
+        if ((int)adType != insight._type) {
+            NSLog(@"OnExternalMediationRequest reported adType: %ld doesn't match insight adType: %ld", adType, insight._type);
+        }
+    }
+    [NeftaPlugin OnExternalMediationRequest: _mediationProvider adType: (int)adType recommendedAdUnitId: nil requestedFloorPrice: requestedFloorPrice calculatedFloorPrice: calculatedFloorPrice adUnitId: adUnitId revenue: revenue precision: precision status: status providerStatus: providerStatus networkStatus: nil];
 }
 
 static NeftaPlugin *_plugin;
@@ -84,7 +98,7 @@ static dispatch_semaphore_t _semaphore;
 }
 
 - (NSString *) adapterVersion {
-    return @"2.2.7";
+    return @"4.3.0";
 }
 
 + (ISAdapterErrorType) NLoadToAdapterError:(NError *)error {
@@ -104,7 +118,6 @@ static dispatch_semaphore_t _semaphore;
         return;
     }
     NSMutableDictionary *data = impressionData.all_data.mutableCopy;
-    [data setObject: _mediationProvider forKey: @"mediation_provider"];
     int adType = 0;
     BOOL isNeftaNetwork = [impressionData.ad_network isEqualToString: @"nefta"];
     NSString* auctionId;
@@ -113,19 +126,19 @@ static dispatch_semaphore_t _semaphore;
     if (format != nil) {
         NSString* lowerFormat = [format lowercaseString];
         if ([lowerFormat isEqualToString: @"banner"]) {
-            adType = 1;
+            adType = AdTypeBanner;
             if (isNeftaNetwork) {
                 auctionId = ISNeftaCustomBanner.GetLastAuctionId;
                 creativeId = ISNeftaCustomBanner.GetLastCreativeId;
             }
         } else if ([lowerFormat rangeOfString: @"inter"].location != NSNotFound) {
-            adType = 2;
+            adType = AdTypeInterstitial;
             if (isNeftaNetwork) {
                 auctionId = ISNeftaCustomInterstitial.GetLastAuctionId;
                 creativeId = ISNeftaCustomInterstitial.GetLastCreativeId;
             }
         } else if ([lowerFormat rangeOfString: @"rewarded"].location != NSNotFound) {
-            adType = 3;
+            adType = AdTypeRewarded;
             if (isNeftaNetwork) {
                 auctionId = ISNeftaCustomRewardedVideo.GetLastAuctionId;
                 creativeId = ISNeftaCustomRewardedVideo.GetLastCreativeId;

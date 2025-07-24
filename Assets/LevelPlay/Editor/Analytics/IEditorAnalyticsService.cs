@@ -12,5 +12,7 @@ namespace Unity.Services.LevelPlay.Editor
         void SendInstallPackage(string component);
         void SendInteractWithSkanIdCheckBox(bool action);
         void SendFailedToAddSkAdNetworkId(string adapterName);
+        void SendInstantiateGameObject(string adFormat);
+        void SendMdrEvent(string action);
     }
 }

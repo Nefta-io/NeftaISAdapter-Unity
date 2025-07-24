@@ -6,15 +6,16 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-    typedef void (*OnBehaviourInsight)(int requestId, const char *behaviourInsight);
+    typedef void (*OnInsights)(int requestId, const char *insights);
 
     void EnableLogging(bool enable);
-    void NeftaPlugin_Init(const char *appId, bool sendImpressions, OnBehaviourInsight onBehaviourInsight);
+    void NeftaPlugin_Init(const char *appId, bool sendImpressions, OnInsights onInsights);
     void NeftaPlugin_Record(int type, int category, int subCategory, const char *name, long value, const char *customPayload);
-    void NeftaPlugin_OnExternalMediationRequest(int adType, const char *recommendedAdUnitId, double requestedFloorPrice, double calculatedFloorPrice, const char *adUnitId, double revenue, const char *precision, int status, const char *providerStatus, const char *networkStatus);
+    void NeftaPlugin_OnExternalMediationRequest(const char *mediationProvider, int adType, const char *recommendedAdUnitId, double requestedFloorPrice, double calculatedFloorPrice, const char *adUnitId, double revenue, const char *precision, int status, const char *providerStatus, const char *networkStatus);
+    void NeftaPlugin_OnExternalMediationImpressionAsString(const char *mediationProvider, const char *data, int adType, double revenue, const char *precision);
     const char * NeftaPlugin_GetNuid(bool present);
     void NeftaPlugin_SetContentRating(const char *rating);
-    void NeftaPlugin_GetBehaviourInsight(int requestId, const char *insights);
+    void NeftaPlugin_GetInsights(int requestId, int insights, int timeoutInSeconds);
     void NeftaPlugin_SetOverride(const char *root);
 #ifdef __cplusplus
 }
@@ -26,11 +27,11 @@ void NeftaPlugin_EnableLogging(bool enable) {
     [NeftaPlugin EnableLogging: enable];
 }
 
-void NeftaPlugin_Init(const char *appId, bool sendImpressions, OnBehaviourInsight onBehaviourInsight) {
+void NeftaPlugin_Init(const char *appId, bool sendImpressions, OnInsights onInsights) {
     _plugin = [ISNeftaCustomAdapter initWithAppId: [NSString stringWithUTF8String: appId] sendImpressions: sendImpressions];
-    _plugin.OnBehaviourInsightAsString = ^void(NSInteger requestId, NSString * _Nonnull behaviourInsight) {
-        const char *cBI = [behaviourInsight UTF8String];
-        onBehaviourInsight((int)requestId, cBI);
+    _plugin.OnInsightsAsString = ^void(NSInteger requestId, NSString * _Nullable insights) {
+        const char *cBI = insights ? [insights UTF8String] : NULL;
+        onInsights((int)requestId, cBI);
     };
 }
 
@@ -51,16 +52,24 @@ void NeftaPlugin_SetContentRating(const char *rating) {
     [_plugin SetContentRatingWithRating: [NSString stringWithUTF8String: rating]];
 }
 
-void NeftaPlugin_GetBehaviourInsight(int requestId, const char *insights) {
-    [_plugin GetBehaviourInsightBridge: requestId string: [NSString stringWithUTF8String: insights]];
+void NeftaPlugin_GetInsights(int requestId, int insights, int timeoutInSeconds) {
+    [_plugin GetInsightsBridge: requestId insights: insights timeout: timeoutInSeconds];
 }
 
-void NeftaPlugin_OnExternalMediationRequest(int adType, const char *recommendedAdUnitId, double requestedFloorPrice, double calculatedFloorPrice, const char *adUnitId, double revenue, const char *precision, int status, const char *providerStatus, const char *networkStatus) {
+void NeftaPlugin_OnExternalMediationRequest(const char *mediationProvider, int adType, const char *recommendedAdUnitId, double requestedFloorPrice, double calculatedFloorPrice, const char *adUnitId, double revenue, const char *precision, int status, const char *providerStatus, const char *networkStatus) {
+    NSString *mP = mediationProvider ? [NSString stringWithUTF8String: mediationProvider] : nil;
     NSString *r = recommendedAdUnitId ? [NSString stringWithUTF8String: recommendedAdUnitId] : nil;
     NSString *a = adUnitId ? [NSString stringWithUTF8String: adUnitId] : nil;
     NSString *p = precision ? [NSString stringWithUTF8String: precision] : nil;
     NSString *pS = providerStatus ? [NSString stringWithUTF8String: providerStatus] : nil;
-    [NeftaPlugin OnExternalMediationRequest: @"ironsource-levelplay" adType: adType recommendedAdUnitId: r requestedFloorPrice: requestedFloorPrice calculatedFloorPrice: calculatedFloorPrice adUnitId: a revenue: revenue precision: p status: status providerStatus: pS networkStatus: nil];
+    [NeftaPlugin OnExternalMediationRequest: mP adType: adType recommendedAdUnitId: r requestedFloorPrice: requestedFloorPrice calculatedFloorPrice: calculatedFloorPrice adUnitId: a revenue: revenue precision: p status: status providerStatus: pS networkStatus: nil];
+}
+
+void NeftaPlugin_OnExternalMediationImpressionAsString(const char *mediationProvider, const char *data, int adType, double revenue, const char *precision) {
+    NSString *mP = mediationProvider ? [NSString stringWithUTF8String: mediationProvider] : nil;
+    NSString *d = data ? [NSString stringWithUTF8String: data] : nil;
+    NSString *p = precision ? [NSString stringWithUTF8String: precision] : nil;
+    [NeftaPlugin OnExternalMediationImpressionAsString: mP data: d adType: adType revenue: revenue precision: p];
 }
 
 void NeftaPlugin_SetOverride(const char *root) {

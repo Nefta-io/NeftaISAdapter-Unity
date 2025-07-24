@@ -16,7 +16,7 @@ namespace Nefta
 {
     public class Adapter
     {
-        public delegate void OnBehaviourInsightCallback(Dictionary<string, Insight> insights);
+        public delegate void OnInsightsCallback(Insights insights);
         
         public enum AdType
         {
@@ -38,14 +38,13 @@ namespace Nefta
         private class InsightRequest
         {
             public int _id;
+            public IEnumerable<string> _insights;
             public SynchronizationContext _returnContext;
-            public OnBehaviourInsightCallback _callback;
+            public OnInsightsCallback _callback;
 
-            public InsightRequest(OnBehaviourInsightCallback callback)
+            public InsightRequest(int id, OnInsightsCallback callback)
             {
-                _id = Interlocked.CompareExchange(ref _insightId, 0, 0);
-                Interlocked.Increment(ref _insightId);
-                _insightId++;
+                _id = id;
                 _returnContext = SynchronizationContext.Current;
                 _callback = callback;
             }
@@ -54,24 +53,27 @@ namespace Nefta
 #if UNITY_EDITOR
         private static NeftaPlugin _plugin;
 #elif UNITY_IOS
-        private delegate void OnBehaviourInsightDelegate(int requestId, string behaviourInsight);
+        private delegate void OnInsightsDelegate(int requestId, string insights);
 
-        [MonoPInvokeCallback(typeof(OnBehaviourInsightDelegate))] 
-        private static void OnBehaviourInsight(int requestId, string behaviourInsight) {
-            IOnBehaviourInsight(requestId, behaviourInsight);
+        [MonoPInvokeCallback(typeof(OnInsightsDelegate))] 
+        private static void OnInsights(int requestId, string insights) {
+            IOnInsights(requestId, insights);
         }
 
         [DllImport ("__Internal")]
         private static extern void NeftaPlugin_EnableLogging(bool enable);
 
         [DllImport ("__Internal")]
-        private static extern void NeftaPlugin_Init(string appId, bool sendImpressions, OnBehaviourInsightDelegate onBehaviourInsight);
+        private static extern void NeftaPlugin_Init(string appId, bool sendImpressions, OnInsightsDelegate onInsights);
 
         [DllImport ("__Internal")]
         private static extern void NeftaPlugin_Record(int type, int category, int subCategory, string nameValue, long value, string customPayload);
 
         [DllImport ("__Internal")]
-        private static extern void NeftaPlugin_OnExternalMediationRequest(int adType, string recommendedAdUnitId, double requestedFloorPrice, double calculatedFloorPrice, string adUnitId, double revenue, string precision, int status, string providerStatus, string networkStatus);
+        private static extern void NeftaPlugin_OnExternalMediationRequest(string mediationProvider, int adType, string recommendedAdUnitId, double requestedFloorPrice, double calculatedFloorPrice, string adUnitId, double revenue, string precision, int status, string providerStatus, string networkStatus);
+
+        [DllImport ("__Internal")]
+        private static extern void NeftaPlugin_OnExternalMediationImpressionAsString(string mediationProvider, string data, int adType, double revenue, string precision);
 
         [DllImport ("__Internal")]
         private static extern string NeftaPlugin_GetNuid(bool present);
@@ -80,7 +82,7 @@ namespace Nefta
         private static extern void NeftaPlugin_SetContentRating(string rating);
         
         [DllImport ("__Internal")]
-        private static extern void NeftaPlugin_GetBehaviourInsight(int requestId, string insights);
+        private static extern void NeftaPlugin_GetInsights(int requestId, int insights, int timeoutInSeconds);
         
         [DllImport ("__Internal")]
         private static extern void NeftaPlugin_SetOverride(string root);
@@ -102,8 +104,6 @@ namespace Nefta
         private static List<InsightRequest> _insightRequests;
         private static int _insightId;
         
-        public static OnBehaviourInsightCallback BehaviourInsightCallback;
-        
         public static void EnableLogging(bool enable)
         {
 #if UNITY_EDITOR
@@ -123,51 +123,24 @@ namespace Nefta
             _plugin = NeftaPlugin.Init(pluginGameObject, appId);
             _plugin._adapterListener = new NeftaAdapterListener();
 #elif UNITY_IOS
-            NeftaPlugin_Init(appId, sendImpressions, OnBehaviourInsight);
+            NeftaPlugin_Init(appId, sendImpressions, OnInsights);
 #elif UNITY_ANDROID
             AndroidJavaClass unityClass = new AndroidJavaClass("com.unity3d.player.UnityPlayer");
             var unityActivity = unityClass.GetStatic<AndroidJavaObject>("currentActivity");
 
             AndroidJavaClass neftaAdapterClass = new AndroidJavaClass("com.ironsource.adapters.custom.nefta.NeftaCustomAdapter");
             _plugin = neftaAdapterClass.CallStatic<AndroidJavaObject>("Init", unityActivity, appId, sendImpressions, new NeftaAdapterListener());
-
-            Application.focusChanged += OnFocusChanged;
 #endif
             _insightRequests = new List<InsightRequest>();
         }
-        
-#if !UNITY_EDITOR && UNITY_ANDROID
-        private static void OnFocusChanged(bool hasFocus)
-        {
-            if (hasFocus)
-            {
-                _plugin.Call("OnResume");
-            }
-            else
-            {
-                _plugin.Call("OnPause");
-            }
-        }
-#endif
 
         public static void Record(GameEvent gameEvent)
         {
             var type = gameEvent._eventType;
             var category = gameEvent._category;
             var subCategory = gameEvent._subCategory;
-            var name = gameEvent._name;
-            if (name != null)
-            {
-                name = JavaScriptStringEncode(gameEvent._name);
-            }
             var value = gameEvent._value;
-            var customPayload = gameEvent._customString;
-            if (customPayload != null)
-            {
-                customPayload = JavaScriptStringEncode(gameEvent._customString);
-            }
-            
-            Record(type, category, subCategory, name, value, customPayload);
+            Record(type, category, subCategory, gameEvent._name, value, gameEvent._customString);
         }
         
         internal static void Record(int type, int category, int subCategory, string name, long value, string customPayload)
@@ -181,73 +154,133 @@ namespace Nefta
 #endif
         }
         
-        public static void OnExternalMediationRequestLoaded(AdType adType, double requestedFloorPrice, double calculatedFloorPrice, com.unity3d.mediation.LevelPlayAdInfo adInfo)
+        /// <summary>
+        /// Should be called when LevelPlay loads any ad (LevelPlay[AdType]Ad.OnAdLoaded)
+        /// </summary>
+        /// <param name="adType">Ad format of the loaded ad</param>
+        /// <param name="usedInsight">Insights that were used</param>
+        /// <param name="requestedFloorPrice">Floor price that was actually used in the ad request</param>
+        /// <param name="adInfo">Loaded LevelPlay Ad instance data</param>
+        public static void OnExternalMediationRequestLoaded(AdType adType, AdInsight usedInsight, double requestedFloorPrice, Unity.Services.LevelPlay.LevelPlayAdInfo adInfo)
         {
-            OnExternalMediationRequest((int) adType, requestedFloorPrice, calculatedFloorPrice, adInfo.AdUnitId, adInfo.Revenue ?? 0, adInfo.Precision, 1, null, null);
+            OnExternalMediationRequest(adType, usedInsight, requestedFloorPrice, adInfo.AdUnitId, adInfo.Revenue ?? 0, adInfo.Precision, 1, null);
         }
         
-        public static void OnExternalMediationRequestLoaded(AdType adType, double requestedFloorPrice, double calculatedFloorPrice, Unity.Services.LevelPlay.LevelPlayAdInfo adInfo)
-        {
-            OnExternalMediationRequest((int) adType, requestedFloorPrice, calculatedFloorPrice, adInfo.AdUnitId, adInfo.Revenue ?? 0, adInfo.Precision, 1, null, null);
-        }
-        
-        public static void OnExternalMediationRequestFailed(AdType adType, double requestedFloorPrice, double calculatedFloorPrice, com.unity3d.mediation.LevelPlayAdError error)
+        /// <summary>
+        /// Should be called when LevelPlay fails to loads any ad (LevelPlay[AdType]Ad.OnAdLoadFailed)
+        /// </summary>
+        /// <param name="adType">Ad format of the requested ad</param>
+        /// <param name="usedInsight">Insights that were used</param>
+        /// <param name="requestedFloorPrice">Floor price that was actually used in the ad request</param>
+        /// <param name="error">Loaded ad load error</param>
+        public static void OnExternalMediationRequestFailed(AdType adType, AdInsight usedInsight, double requestedFloorPrice, Unity.Services.LevelPlay.LevelPlayAdError error)
         {
             var status = 0;
             if (error.ErrorCode == 509 || error.ErrorCode == 606 || error.ErrorCode == 706 || error.ErrorCode == 1058 || error.ErrorCode == 1158)
             {
                 status = 2;
             }
-            OnExternalMediationRequest((int) adType, requestedFloorPrice, calculatedFloorPrice, error.AdUnitId, -1, null, status, error.ErrorCode.ToString(CultureInfo.InvariantCulture), null);
+            OnExternalMediationRequest(adType, usedInsight, requestedFloorPrice, error.AdUnitId, -1, null, status, error.ErrorCode.ToString(CultureInfo.InvariantCulture));
         }
-
-        public static void OnExternalMediationRequestFailed(AdType adType, double requestedFloorPrice, double calculatedFloorPrice, Unity.Services.LevelPlay.LevelPlayAdError error)
+        
+        /// <summary>
+        /// Should be called when LevelPlay loads any ad (LevelPlay[AdType]Ad.OnAdLoaded)
+        /// </summary>
+        /// <param name="adType">Ad format of the loaded ad</param>
+        /// <param name="usedInsight">Insights that were used</param>
+        /// <param name="requestedFloorPrice">Floor price that was actually used in the ad request</param>
+        /// <param name="adInfo">Loaded LevelPlay Ad instance data</param>
+        public static void OnExternalMediationRequestLoaded(AdType adType, AdInsight usedAdInsight, double requestedFloorPrice, com.unity3d.mediation.LevelPlayAdInfo adInfo)
+        {
+            OnExternalMediationRequest(adType, usedAdInsight, requestedFloorPrice, adInfo.AdUnitId, adInfo.Revenue ?? 0, adInfo.Precision, 1, null);
+        }
+        
+        /// <summary>
+        /// Should be called when LevelPlay fails to loads any ad (LevelPlay[AdType]Ad.OnAdLoadFailed)
+        /// </summary>
+        /// <param name="adType">Ad format of the requested ad</param>
+        /// <param name="usedInsight">Insights that were used</param>
+        /// <param name="requestedFloorPrice">Floor price that was actually used in the ad request</param>
+        /// <param name="error">Loaded ad load error</param>
+        public static void OnExternalMediationRequestFailed(AdType adType, AdInsight usedInsight, double requestedFloorPrice, com.unity3d.mediation.LevelPlayAdError error)
         {
             var status = 0;
             if (error.ErrorCode == 509 || error.ErrorCode == 606 || error.ErrorCode == 706 || error.ErrorCode == 1058 || error.ErrorCode == 1158)
             {
                 status = 2;
             }
-            OnExternalMediationRequest((int) adType, requestedFloorPrice, calculatedFloorPrice, error.AdUnitId, -1, null, status, error.ErrorCode.ToString(CultureInfo.InvariantCulture), null);
+            OnExternalMediationRequest(adType, usedInsight, requestedFloorPrice, error.AdUnitId, -1, null, status, error.ErrorCode.ToString(CultureInfo.InvariantCulture));
         }
 
-        private static void OnExternalMediationRequest(int adType, double requestedFloorPrice, double calculatedFloorPrice, string adUnitId, double revenue, string precision, int status, string providerStatus, string networkStatus)
+        private static void OnExternalMediationRequest(AdType adType, AdInsight insight, double requestedFloorPrice, string adUnitId, double revenue, string precision, int status, string providerStatus)
         {
+            var calculatedFloorPrice = 0.0;
+            if (insight != null)
+            {
+                calculatedFloorPrice = insight._floorPrice;
+                
+                if (insight._type != adType)
+                {
+                    Debug.LogWarning($"OnExternalMediationRequest reported adType: {adType} doesn't match insight adType: {insight._type}");
+                }
+            }
+            
 #if UNITY_EDITOR
-            _plugin.OnExternalMediationRequest("ironsource-levelplay", adType, null, requestedFloorPrice, calculatedFloorPrice, adUnitId, revenue, precision, status, providerStatus, networkStatus);
+            _plugin.OnExternalMediationRequest("ironsource-levelplay", (int)adType, null, requestedFloorPrice, calculatedFloorPrice, adUnitId, revenue, precision, status, providerStatus, null);
 #elif UNITY_IOS
-            NeftaPlugin_OnExternalMediationRequest(adType, null, requestedFloorPrice, calculatedFloorPrice, adUnitId, revenue, precision, status, providerStatus, networkStatus);
+            NeftaPlugin_OnExternalMediationRequest("ironsource-levelplay", (int)adType, null, requestedFloorPrice, calculatedFloorPrice, adUnitId, revenue, precision, status, providerStatus, null);
 #elif UNITY_ANDROID
-            _plugin.CallStatic("OnExternalMediationRequest", "ironsource-levelplay", adType, null, requestedFloorPrice, calculatedFloorPrice, adUnitId, revenue, precision, status, providerStatus, networkStatus);
+            _plugin.CallStatic("OnExternalMediationRequest", "ironsource-levelplay", (int)adType, null, requestedFloorPrice, calculatedFloorPrice, adUnitId, revenue, precision, status, providerStatus, null);
 #endif
         }
         
-        public static void GetBehaviourInsight(string[] insightList, OnBehaviourInsightCallback callback=null)
+        public static void OnExternalMediationImpression(IronSourceImpressionData impression)
         {
-            var request = new InsightRequest(callback ?? BehaviourInsightCallback);
-            _insightRequests.Add(request);
-            
-            StringBuilder sb = new StringBuilder();
-            bool isFirst = true;
-            foreach (var insight in insightList)
+            var adType = 0;
+            if (impression.adFormat != null)
             {
-                if (isFirst)
+                var formatLower = impression.adFormat.ToLower();
+                if (formatLower == "banner")
                 {
-                    isFirst = false;
+                    adType = 1;
                 }
-                else
+                else if (formatLower.Contains("inter"))
                 {
-                    sb.Append(",");
+                    adType = 2;
                 }
-                sb.Append(insight);
+                else if (formatLower.Contains("rewarded"))
+                {
+                    adType = 3;
+                }
             }
-            var insights = sb.ToString();
+            var revenue = impression.revenue ?? 0;
+            var precision = impression.precision;
 #if UNITY_EDITOR
-            _plugin.GetBehaviourInsight(request._id, insights);
+            _plugin.OnExternalMediationImpression(impression.allData);
 #elif UNITY_IOS
-            NeftaPlugin_GetBehaviourInsight(request._id, insights);
+            NeftaPlugin_OnExternalMediationImpressionAsString("ironsource-levelplay", impression.allData, adType, revenue, precision);
 #elif UNITY_ANDROID
-            _plugin.Call("GetBehaviourInsightBridge", request._id, insights);
+            _plugin.CallStatic("OnExternalMediationImpressionAsString", "ironsource-levelplay", impression.allData, adType, revenue, precision);
+#endif
+        }
+        
+        public static void GetInsights(int insights, OnInsightsCallback callback, int timeoutInSeconds=0)
+        {
+            var id = 0;
+            lock (_insightRequests)
+            {
+                id = _insightId;
+                var request = new InsightRequest(id, callback);
+                _insightRequests.Add(request);
+                _insightId++;
+            }
+
+#if UNITY_EDITOR
+            _plugin.GetInsights(id, insights, timeoutInSeconds);
+#elif UNITY_IOS
+            NeftaPlugin_GetInsights(id, insights, timeoutInSeconds);
+#elif UNITY_ANDROID
+            _plugin.Call("GetInsightsBridge", id, insights, timeoutInSeconds);
 #endif
         }
         
@@ -294,7 +327,7 @@ namespace Nefta
         public static void SetOverride(string root) 
         {
 #if UNITY_EDITOR
-            _plugin.Override(root);
+            NeftaPlugin.SetOverride(root);
 #elif UNITY_IOS
             NeftaPlugin_SetOverride(root);
 #elif UNITY_ANDROID
@@ -302,112 +335,73 @@ namespace Nefta
 #endif
         }
         
-        internal static void IOnBehaviourInsight(int id, string bi)
+        internal static void IOnInsights(int id, string bi)
         {
-            var behaviourInsight = new Dictionary<string, Insight>();
-            if (bi != null)
+            var insights = new Insights();
+            var data = IronSourceJSON.Json.Deserialize(bi) as Dictionary<string, object>;
+            if (data != null)
             {
-                try
+                if (data.TryGetValue("churn", out var churn))
                 {
-                    var start = bi.IndexOf("s\":", StringComparison.InvariantCulture) + 5;
-
-                    while (start != -1 && start < bi.Length)
+                    insights._churn = new Churn();
+                    var churnData = (Dictionary<string, object>)churn;
+                    if (churnData.TryGetValue("d1_probability", out var d1Probability))
                     {
-                        var end = bi.IndexOf("\":{", start, StringComparison.InvariantCulture);
-                        var key = bi.Substring(start, end - start);
-                        long intVal = 0;
-                        double floatVal = 0;
-                        string stringVal = null;
-
-                        start = end + 4;
-                        for (var f = 0; f < 4; f++)
-                        {
-                            if (bi[start] == 'f')
-                            {
-                                start += 11;
-                                end = start + 1;
-                                for (; end < bi.Length; end++)
-                                {
-                                    if (bi[end] == ',' || bi[end] == '}')
-                                    {
-                                        break;
-                                    }
-                                }
-
-                                var doubleString = bi.Substring(start, end - start);
-                                floatVal = Double.Parse(doubleString, NumberStyles.Float, CultureInfo.InvariantCulture);
-                            }
-                            else if (bi[start] == 'i')
-                            {
-                                start += 9;
-                                end = start + 1;
-                                for (; end < bi.Length; end++)
-                                {
-                                    if (bi[end] == ',' || bi[end] == '}')
-                                    {
-                                        break;
-                                    }
-                                }
-
-                                var intString = bi.Substring(start, end - start);
-                                intVal = long.Parse(intString, NumberStyles.Number, CultureInfo.InvariantCulture);
-                            }
-                            else if (bi[start] == 's' && bi[start + 2] == 'r')
-                            {
-                                start += 13;
-                                end = bi.IndexOf("\"", start, StringComparison.InvariantCulture);
-                                stringVal = bi.Substring(start, end - start);
-                                end++;
-                            }
-
-                            if (bi[end] == '}')
-                            {
-                                break;
-                            }
-
-                            start = end + 2;
-                        }
-
-                        behaviourInsight[key] = new Insight(intVal, floatVal, stringVal);
-
-                        if (bi[end + 1] == '}')
-                        {
-                            break;
-                        }
-
-                        start = end + 3;
+                        insights._churn._d1_probability = Convert.ToDouble(d1Probability);
+                    }
+                    if (churnData.TryGetValue("d3_probability", out var d3Probability))
+                    {
+                        insights._churn._d3_probability = Convert.ToDouble(d3Probability);
+                    }
+                    if (churnData.TryGetValue("d7_probability", out var d7Probability))
+                    {
+                        insights._churn._d7_probability = Convert.ToDouble(d7Probability);
+                    }
+                    if (churnData.TryGetValue("d14_probability", out var d14Probability))
+                    {
+                        insights._churn._d14_probability = Convert.ToDouble(d14Probability);
+                    }
+                    if (churnData.TryGetValue("d30_probability", out var d30Probability))
+                    {
+                        insights._churn._d30_probability = Convert.ToDouble(d30Probability);
+                    }
+                    if (churnData.TryGetValue("probability_confidence", out var probabilityConfidence))
+                    {
+                        insights._churn._probability_confidence = (string)probabilityConfidence;
                     }
                 }
-                catch (Exception)
+                
+                if (data.TryGetValue("floor_price", out var floorPrice))
                 {
-                    // ignored
+                    var floorPriceData = (Dictionary<string, object>)floorPrice;
+                    if (floorPriceData.TryGetValue("banner_configuration", out var banner))
+                    {
+                        insights._banner = ParseFloorPriceConfiguration(banner, AdType.Banner);
+                    }
+                    if (floorPriceData.TryGetValue("interstitial_configuration", out var interstitial))
+                    {
+                        insights._interstitial = ParseFloorPriceConfiguration(interstitial, AdType.Interstitial);
+                    }
+                    if (floorPriceData.TryGetValue("rewarded_configuration", out var rewarded))
+                    {
+                        insights._rewarded = ParseFloorPriceConfiguration(rewarded, AdType.Rewarded);
+                    }
                 }
             }
 
             try
             {
-                InsightRequest request = null;
-                foreach (var iR in _insightRequests)
+                lock (_insightRequests)
                 {
-                    if (iR._id == id)
+                    for (var i = _insightRequests.Count - 1; i >= 0; i--)
                     {
-                        request = iR;
-                        break;
-                    }   
-                }
-                if (request == null)
-                {
-                    return;
-                }
-                
-                request._returnContext.Post(_ => request._callback(behaviourInsight), null);
-
-                for (var i = _insightRequests.Count - 1; i >= 0; i--)
-                {
-                    if (_insightRequests[i]._id == id)
-                    {
-                        _insightRequests.RemoveAt(i);
-                        break;
+                        var insightRequest = _insightRequests[i];
+                        if (insightRequest._id == id)
+                        {
+                            insightRequest._returnContext.Post(_ => insightRequest._callback(insights), null);
+                            _insightRequests.RemoveAt(i);
+                            break;
+                        }
                     }
                 }
             }
@@ -417,71 +411,20 @@ namespace Nefta
             }
         }
         
-        internal static string JavaScriptStringEncode(string value)
+        private static AdInsight ParseFloorPriceConfiguration(object floorPriceConfiguration, AdType adType)
         {
-            int len = value.Length;
-            bool needEncode = false;
-            char c;
-            for (int i = 0; i < len; i++)
+            var adInsightData = (Dictionary<string, object>)floorPriceConfiguration;
+            AdInsight adInsight = new AdInsight();
+            adInsight._type = adType;
+            if (adInsightData.TryGetValue("floor_price", out var floorPrice))
             {
-                c = value [i];
-
-                if (c >= 0 && c <= 31 || c == 34 || c == 39 || c == 60 || c == 62 || c == 92)
-                {
-                    needEncode = true;
-                    break;
-                }
+                adInsight._floorPrice = Convert.ToDouble(floorPrice);
             }
-
-            if (!needEncode)
+            if (adInsightData.TryGetValue("ad_unit", out var adUnit))
             {
-                return value;
+                adInsight._adUnit = (string) adUnit;
             }
-            
-            var sb = new StringBuilder ();
-            for (int i = 0; i < len; i++)
-            {
-                c = value [i];
-                if (c >= 0 && c <= 7 || c == 11 || c >= 14 && c <= 31 || c == 39 || c == 60 || c == 62)
-                {
-                    sb.AppendFormat ("\\u{0:x4}", (int)c);
-                }
-                else switch ((int)c)
-                {
-                    case 8:
-                        sb.Append ("\\b");
-                        break;
-
-                    case 9:
-                        sb.Append ("\\t");
-                        break;
-
-                    case 10:
-                        sb.Append ("\\n");
-                        break;
-
-                    case 12:
-                        sb.Append ("\\f");
-                        break;
-
-                    case 13:
-                        sb.Append ("\\r");
-                        break;
-
-                    case 34:
-                        sb.Append ("\\\"");
-                        break;
-
-                    case 92:
-                        sb.Append ("\\\\");
-                        break;
-
-                    default:
-                        sb.Append (c);
-                        break;
-                }
-            }
-            return sb.ToString ();
+            return adInsight;
         }
     }
 }
