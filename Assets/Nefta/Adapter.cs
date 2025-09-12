@@ -35,6 +35,11 @@ namespace Nefta
             MatureAudience = 4
         }
         
+        public struct ExtParams
+        {
+            public const string TestGroup = "test_group";
+        }
+        
         private class InsightRequest
         {
             public int _id;
@@ -53,27 +58,40 @@ namespace Nefta
 #if UNITY_EDITOR
         private static NeftaPlugin _plugin;
 #elif UNITY_IOS
-        private delegate void OnInsightsDelegate(int requestId, string insights);
+        private delegate void OnReadyDelegate(string response);
+
+        [MonoPInvokeCallback(typeof(OnReadyDelegate))] 
+        private static void OnInternalReady(string response) {
+            IOnReady(response);
+        }
+
+        private delegate void OnInsightsDelegate(int requestId, int adapterResponseType, string adapterResponse);
 
         [MonoPInvokeCallback(typeof(OnInsightsDelegate))] 
-        private static void OnInsights(int requestId, string insights) {
-            IOnInsights(requestId, insights);
+        private static void OnInsights(int requestId, int adapterResponseType, string adapterResponse) {
+            IOnInsights(requestId, adapterResponseType, adapterResponse);
         }
 
         [DllImport ("__Internal")]
         private static extern void NeftaPlugin_EnableLogging(bool enable);
 
         [DllImport ("__Internal")]
-        private static extern void NeftaPlugin_Init(string appId, bool sendImpressions, OnInsightsDelegate onInsights);
+        private static extern void NeftaPlugin_SetExtraParameter(string key, string value);
+
+        [DllImport ("__Internal")]
+        private static extern void NeftaPlugin_Init(string appId, bool sendImpression, OnReadyDelegate onReady, OnInsightsDelegate onInsights);
 
         [DllImport ("__Internal")]
         private static extern void NeftaPlugin_Record(int type, int category, int subCategory, string nameValue, long value, string customPayload);
 
         [DllImport ("__Internal")]
-        private static extern void NeftaPlugin_OnExternalMediationRequest(string mediationProvider, int adType, string recommendedAdUnitId, double requestedFloorPrice, double calculatedFloorPrice, string adUnitId, double revenue, string precision, int status, string providerStatus, string networkStatus);
+        private static extern void NeftaPlugin_OnExternalMediationRequest(string provider, int adType, string id, string requestedAdUnitId, double requestedFloorPrice, int adOpportunityId);
 
         [DllImport ("__Internal")]
-        private static extern void NeftaPlugin_OnExternalMediationImpressionAsString(string mediationProvider, string data, int adType, double revenue, string precision);
+        private static extern void NeftaPlugin_OnExternalMediationResponse(string provider, string id, string id2, double revenue, string precision, int status, string providerStatus, string networkStatus);
+
+        [DllImport ("__Internal")]
+        private static extern void NeftaPlugin_OnExternalMediationImpressionAsString(bool isClick, string provider, string data, string id, string id2);
 
         [DllImport ("__Internal")]
         private static extern string NeftaPlugin_GetNuid(bool present);
@@ -82,7 +100,7 @@ namespace Nefta
         private static extern void NeftaPlugin_SetContentRating(string rating);
         
         [DllImport ("__Internal")]
-        private static extern void NeftaPlugin_GetInsights(int requestId, int insights, int timeoutInSeconds);
+        private static extern void NeftaPlugin_GetInsights(int requestId, int insights, int previousAdOpportunityId, int timeoutInSeconds);
         
         [DllImport ("__Internal")]
         private static extern void NeftaPlugin_SetOverride(string root);
@@ -104,6 +122,8 @@ namespace Nefta
         private static List<InsightRequest> _insightRequests;
         private static int _insightId;
         
+        public static Action<string[]> OnReady;
+        
         public static void EnableLogging(bool enable)
         {
 #if UNITY_EDITOR
@@ -123,7 +143,7 @@ namespace Nefta
             _plugin = NeftaPlugin.Init(pluginGameObject, appId);
             _plugin._adapterListener = new NeftaAdapterListener();
 #elif UNITY_IOS
-            NeftaPlugin_Init(appId, sendImpressions, OnInsights);
+            NeftaPlugin_Init(appId, sendImpressions, OnInternalReady, OnInsights);
 #elif UNITY_ANDROID
             AndroidJavaClass unityClass = new AndroidJavaClass("com.unity3d.player.UnityPlayer");
             var unityActivity = unityClass.GetStatic<AndroidJavaObject>("currentActivity");
@@ -139,8 +159,18 @@ namespace Nefta
             var type = gameEvent._eventType;
             var category = gameEvent._category;
             var subCategory = gameEvent._subCategory;
+            var name = gameEvent._name;
+            if (name != null)
+            {
+                name = JavaScriptStringEncode(name);
+            }
             var value = gameEvent._value;
-            Record(type, category, subCategory, gameEvent._name, value, gameEvent._customString);
+            var customPayload = gameEvent._customString;
+            if (customPayload != null)
+            {
+                customPayload = JavaScriptStringEncode(customPayload);
+            }
+            Record(type, category, subCategory, name, value, customPayload);
         }
         
         internal static void Record(int type, int category, int subCategory, string name, long value, string customPayload)
@@ -153,6 +183,59 @@ namespace Nefta
             _plugin.Call("Record", type, category, subCategory, name, value, customPayload);
 #endif
         }
+
+        public static void OnExternalMediationRequest(Unity.Services.LevelPlay.LevelPlayBannerAd bannerAd, AdInsight usedInsight, double customBidFloor=-1)
+        {
+            if (customBidFloor < 0)
+            {
+                customBidFloor = usedInsight._floorPrice;
+            }
+            OnExternalMediationRequest(AdType.Banner, bannerAd.GetAdId(), bannerAd.GetAdUnitId(), usedInsight, customBidFloor);
+        }
+        public static void OnExternalMediationRequest(Unity.Services.LevelPlay.LevelPlayBannerAd bannerAd, double customBidFloor=-1)
+        {
+            OnExternalMediationRequest(AdType.Banner, bannerAd.GetAdId(), bannerAd.GetAdUnitId(), null, customBidFloor);
+        }
+        public static void OnExternalMediationRequest(Unity.Services.LevelPlay.LevelPlayInterstitialAd interstitialAd, AdInsight usedInsight, double customBidFloor=-1)
+        {
+            if (customBidFloor < 0)
+            {
+                customBidFloor = usedInsight._floorPrice;
+            }
+            OnExternalMediationRequest(AdType.Interstitial, interstitialAd.GetAdId(), interstitialAd.AdUnitId, usedInsight, customBidFloor);
+        }
+        public static void OnExternalMediationRequest(Unity.Services.LevelPlay.LevelPlayInterstitialAd interstitialAd, double customBidFloor=-1)
+        {
+            OnExternalMediationRequest(AdType.Interstitial, interstitialAd.GetAdId(), interstitialAd.AdUnitId, null, customBidFloor);
+        }
+        public static void OnExternalMediationRequest(Unity.Services.LevelPlay.LevelPlayRewardedAd rewardedAd, AdInsight usedInsight, double customBidFloor=-1)
+        {
+            if (customBidFloor < 0)
+            {
+                customBidFloor = usedInsight._floorPrice;
+            }
+            OnExternalMediationRequest(AdType.Rewarded, rewardedAd.GetAdId(), rewardedAd.AdUnitId, usedInsight, customBidFloor);
+        }
+        public static void OnExternalMediationRequest(Unity.Services.LevelPlay.LevelPlayRewardedAd rewardedAd, double customBidFloor=-1)
+        {
+            OnExternalMediationRequest(AdType.Rewarded, rewardedAd.GetAdId(), rewardedAd.AdUnitId, null, customBidFloor);
+        }
+        private static void OnExternalMediationRequest(AdType adType, string id, string adUnitId, AdInsight usedInsight, double requestedFloorPrice)
+        {
+            var adOpportunityId = -1;
+            if (usedInsight != null)
+            {
+                adOpportunityId = usedInsight._adOpportunityId;
+                requestedFloorPrice = usedInsight._floorPrice;
+            }
+#if UNITY_EDITOR
+            _plugin.OnExternalMediationRequest("ironsource-levelplay", (int)adType, id, adUnitId, requestedFloorPrice, adOpportunityId);
+#elif UNITY_IOS
+            NeftaPlugin_OnExternalMediationRequest("ironsource-levelplay", (int)adType, id, adUnitId, requestedFloorPrice, adOpportunityId);
+#elif UNITY_ANDROID
+            _plugin.CallStatic("OnExternalMediationRequest", "ironsource-levelplay", (int)adType, id, adUnitId, requestedFloorPrice, adOpportunityId);
+#endif
+        }
         
         /// <summary>
         /// Should be called when LevelPlay loads any ad (LevelPlay[AdType]Ad.OnAdLoaded)
@@ -161,9 +244,9 @@ namespace Nefta
         /// <param name="usedInsight">Insights that were used</param>
         /// <param name="requestedFloorPrice">Floor price that was actually used in the ad request</param>
         /// <param name="adInfo">Loaded LevelPlay Ad instance data</param>
-        public static void OnExternalMediationRequestLoaded(AdType adType, AdInsight usedInsight, double requestedFloorPrice, Unity.Services.LevelPlay.LevelPlayAdInfo adInfo)
+        public static void OnExternalMediationRequestLoaded(Unity.Services.LevelPlay.LevelPlayAdInfo adInfo)
         {
-            OnExternalMediationRequest(adType, usedInsight, requestedFloorPrice, adInfo.AdUnitId, adInfo.Revenue ?? 0, adInfo.Precision, 1, null);
+            OnExternalMediationResponse(adInfo.AdId, adInfo.AuctionId, adInfo.Revenue ?? 0, adInfo.Precision, 1, null, null);
         }
         
         /// <summary>
@@ -173,100 +256,72 @@ namespace Nefta
         /// <param name="usedInsight">Insights that were used</param>
         /// <param name="requestedFloorPrice">Floor price that was actually used in the ad request</param>
         /// <param name="error">Loaded ad load error</param>
-        public static void OnExternalMediationRequestFailed(AdType adType, AdInsight usedInsight, double requestedFloorPrice, Unity.Services.LevelPlay.LevelPlayAdError error)
+        public static void OnExternalMediationRequestFailed(Unity.Services.LevelPlay.LevelPlayAdError error)
         {
             var status = 0;
             if (error.ErrorCode == 509 || error.ErrorCode == 606 || error.ErrorCode == 706 || error.ErrorCode == 1058 || error.ErrorCode == 1158)
             {
                 status = 2;
             }
-            OnExternalMediationRequest(adType, usedInsight, requestedFloorPrice, error.AdUnitId, -1, null, status, error.ErrorCode.ToString(CultureInfo.InvariantCulture));
+            OnExternalMediationResponse(error.AdId, error.AdUnitId, -1, null, status, error.ErrorCode.ToString(CultureInfo.InvariantCulture), null);
         }
         
-        /// <summary>
-        /// Should be called when LevelPlay loads any ad (LevelPlay[AdType]Ad.OnAdLoaded)
-        /// </summary>
-        /// <param name="adType">Ad format of the loaded ad</param>
-        /// <param name="usedInsight">Insights that were used</param>
-        /// <param name="requestedFloorPrice">Floor price that was actually used in the ad request</param>
-        /// <param name="adInfo">Loaded LevelPlay Ad instance data</param>
-        public static void OnExternalMediationRequestLoaded(AdType adType, AdInsight usedAdInsight, double requestedFloorPrice, com.unity3d.mediation.LevelPlayAdInfo adInfo)
+        private static void OnExternalMediationResponse(string id, string id2, double revenue, string precision, int status, string providerStatus, string networkStatus)
         {
-            OnExternalMediationRequest(adType, usedAdInsight, requestedFloorPrice, adInfo.AdUnitId, adInfo.Revenue ?? 0, adInfo.Precision, 1, null);
-        }
-        
-        /// <summary>
-        /// Should be called when LevelPlay fails to loads any ad (LevelPlay[AdType]Ad.OnAdLoadFailed)
-        /// </summary>
-        /// <param name="adType">Ad format of the requested ad</param>
-        /// <param name="usedInsight">Insights that were used</param>
-        /// <param name="requestedFloorPrice">Floor price that was actually used in the ad request</param>
-        /// <param name="error">Loaded ad load error</param>
-        public static void OnExternalMediationRequestFailed(AdType adType, AdInsight usedInsight, double requestedFloorPrice, com.unity3d.mediation.LevelPlayAdError error)
-        {
-            var status = 0;
-            if (error.ErrorCode == 509 || error.ErrorCode == 606 || error.ErrorCode == 706 || error.ErrorCode == 1058 || error.ErrorCode == 1158)
-            {
-                status = 2;
-            }
-            OnExternalMediationRequest(adType, usedInsight, requestedFloorPrice, error.AdUnitId, -1, null, status, error.ErrorCode.ToString(CultureInfo.InvariantCulture));
+#if UNITY_EDITOR
+            _plugin.OnExternalMediationResponse("ironsource-levelplay", id, id2, revenue, precision, status, providerStatus, networkStatus);
+#elif UNITY_IOS
+            NeftaPlugin_OnExternalMediationResponse("ironsource-levelplay", id, id2, revenue, precision, status, providerStatus, networkStatus);
+#elif UNITY_ANDROID
+            _plugin.CallStatic("OnExternalMediationResponse", "ironsource-levelplay", id, id2, revenue, precision, status, providerStatus, networkStatus);
+#endif
         }
 
-        private static void OnExternalMediationRequest(AdType adType, AdInsight insight, double requestedFloorPrice, string adUnitId, double revenue, string precision, int status, string providerStatus)
+        /// <summary>
+        /// In Case it's not automatically linked on native in Adapter Init, use this for impression tracking
+        /// </summary>
+        /// <param name="impression"></param>
+        public static void OnLevelPlayImpression(Unity.Services.LevelPlay.LevelPlayImpressionData impression)
         {
-            var calculatedFloorPrice = 0.0;
-            if (insight != null)
+            OnLevelPlayImpression(false, impression.AllData, null, impression.AuctionId);
+        }
+
+        public static void OnLevelPlayClick(Unity.Services.LevelPlay.LevelPlayAdInfo adInfo)
+        {
+            var revenue = (adInfo.Revenue ?? 0).ToString(CultureInfo.InvariantCulture);
+            var adUnitId = adInfo.AdUnitId;
+            if (adUnitId != null)
             {
-                calculatedFloorPrice = insight._floorPrice;
-                
-                if (insight._type != adType)
-                {
-                    Debug.LogWarning($"OnExternalMediationRequest reported adType: {adType} doesn't match insight adType: {insight._type}");
-                }
+                adUnitId = JavaScriptStringEncode(adUnitId);
             }
-            
+            var data = "{\"adFormat\":\""+ adInfo.AdFormat + "\",\"revenue\":"+ revenue + ",\"precision\":\""+ adInfo.Precision + "\",\"mediationAdUnitId\":\""+ adUnitId +"\"}";
+            OnLevelPlayImpression(true, data, adInfo.AdId, null);
+        }
+        
+        private static void OnLevelPlayImpression(bool isClick, string data, string id, string id2)
+        {
+            OnExternalMediationImpression(isClick, "ironsource-levelplay", data, id, id2);
+        }
+        
+        private static void OnExternalMediationImpression(bool isClick, string provider, string data, string id, string id2)
+        {
 #if UNITY_EDITOR
-            _plugin.OnExternalMediationRequest("ironsource-levelplay", (int)adType, null, requestedFloorPrice, calculatedFloorPrice, adUnitId, revenue, precision, status, providerStatus, null);
+            _plugin.OnExternalMediationImpressionAsString(isClick, provider, data, id, id2);
 #elif UNITY_IOS
-            NeftaPlugin_OnExternalMediationRequest("ironsource-levelplay", (int)adType, null, requestedFloorPrice, calculatedFloorPrice, adUnitId, revenue, precision, status, providerStatus, null);
+            NeftaPlugin_OnExternalMediationImpressionAsString(isClick, provider, data, id, id2);
 #elif UNITY_ANDROID
-            _plugin.CallStatic("OnExternalMediationRequest", "ironsource-levelplay", (int)adType, null, requestedFloorPrice, calculatedFloorPrice, adUnitId, revenue, precision, status, providerStatus, null);
+            _plugin.CallStatic("OnExternalMediationImpressionAsString", isClick, provider, data, id, id2);
 #endif
         }
         
-        public static void OnExternalMediationImpression(IronSourceImpressionData impression)
-        {
-            var adType = 0;
-            if (impression.adFormat != null)
-            {
-                var formatLower = impression.adFormat.ToLower();
-                if (formatLower == "banner")
-                {
-                    adType = 1;
-                }
-                else if (formatLower.Contains("inter"))
-                {
-                    adType = 2;
-                }
-                else if (formatLower.Contains("rewarded"))
-                {
-                    adType = 3;
-                }
-            }
-            var revenue = impression.revenue ?? 0;
-            var precision = impression.precision;
-#if UNITY_EDITOR
-            _plugin.OnExternalMediationImpression(impression.allData);
-#elif UNITY_IOS
-            NeftaPlugin_OnExternalMediationImpressionAsString("ironsource-levelplay", impression.allData, adType, revenue, precision);
-#elif UNITY_ANDROID
-            _plugin.CallStatic("OnExternalMediationImpressionAsString", "ironsource-levelplay", impression.allData, adType, revenue, precision);
-#endif
-        }
-        
-        public static void GetInsights(int insights, OnInsightsCallback callback, int timeoutInSeconds=0)
+        public static void GetInsights(int insights, AdInsight previousInsight, OnInsightsCallback callback, int timeoutInSeconds=0)
         {
             var id = 0;
+            var previousAdOpportunityId = -1;
+            if (previousInsight != null)
+            {
+                previousAdOpportunityId = previousInsight._adOpportunityId;
+            }
             lock (_insightRequests)
             {
                 id = _insightId;
@@ -276,11 +331,11 @@ namespace Nefta
             }
 
 #if UNITY_EDITOR
-            _plugin.GetInsights(id, insights, timeoutInSeconds);
+            _plugin.GetInsights(id, insights, previousAdOpportunityId, timeoutInSeconds);
 #elif UNITY_IOS
-            NeftaPlugin_GetInsights(id, insights, timeoutInSeconds);
+            NeftaPlugin_GetInsights(id, insights, previousAdOpportunityId, timeoutInSeconds);
 #elif UNITY_ANDROID
-            _plugin.Call("GetInsightsBridge", id, insights, timeoutInSeconds);
+            _plugin.Call("GetInsightsBridge", id, insights, previousAdOpportunityId, timeoutInSeconds);
 #endif
         }
         
@@ -295,6 +350,17 @@ namespace Nefta
             nuid = _plugin.Call<string>("GetNuid", present);
 #endif
             return nuid;
+        }
+        
+        public static void SetExtraParameter(string key, string value)
+        {
+#if UNITY_EDITOR
+            NeftaPlugin.SetExtraParameter(key, value);
+#elif UNITY_IOS
+            NeftaPlugin_SetExtraParameter(key, value);
+#elif UNITY_ANDROID
+            NeftaPluginClass.CallStatic("SetExtraParameter", key, value);
+#endif
         }
         
         public static void SetContentRating(ContentRating rating)
@@ -335,60 +401,39 @@ namespace Nefta
 #endif
         }
         
-        internal static void IOnInsights(int id, string bi)
+        internal static void IOnReady(string response)
+        {
+            if (OnReady != null)
+            {
+                string[] adUnits = null;
+                if (response != null)
+                {
+                    adUnits = response.Split(',');
+                }
+                OnReady.Invoke(adUnits);
+            }
+        }
+        
+        internal static void IOnInsights(int id, int adapterResponseType, string adapterResponse)
         {
             var insights = new Insights();
-            var data = IronSourceJSON.Json.Deserialize(bi) as Dictionary<string, object>;
-            if (data != null)
+            if (adapterResponseType == Insights.Churn)
             {
-                if (data.TryGetValue("churn", out var churn))
-                {
-                    insights._churn = new Churn();
-                    var churnData = (Dictionary<string, object>)churn;
-                    if (churnData.TryGetValue("d1_probability", out var d1Probability))
-                    {
-                        insights._churn._d1_probability = Convert.ToDouble(d1Probability);
-                    }
-                    if (churnData.TryGetValue("d3_probability", out var d3Probability))
-                    {
-                        insights._churn._d3_probability = Convert.ToDouble(d3Probability);
-                    }
-                    if (churnData.TryGetValue("d7_probability", out var d7Probability))
-                    {
-                        insights._churn._d7_probability = Convert.ToDouble(d7Probability);
-                    }
-                    if (churnData.TryGetValue("d14_probability", out var d14Probability))
-                    {
-                        insights._churn._d14_probability = Convert.ToDouble(d14Probability);
-                    }
-                    if (churnData.TryGetValue("d30_probability", out var d30Probability))
-                    {
-                        insights._churn._d30_probability = Convert.ToDouble(d30Probability);
-                    }
-                    if (churnData.TryGetValue("probability_confidence", out var probabilityConfidence))
-                    {
-                        insights._churn._probability_confidence = (string)probabilityConfidence;
-                    }
-                }
-                
-                if (data.TryGetValue("floor_price", out var floorPrice))
-                {
-                    var floorPriceData = (Dictionary<string, object>)floorPrice;
-                    if (floorPriceData.TryGetValue("banner_configuration", out var banner))
-                    {
-                        insights._banner = ParseFloorPriceConfiguration(banner, AdType.Banner);
-                    }
-                    if (floorPriceData.TryGetValue("interstitial_configuration", out var interstitial))
-                    {
-                        insights._interstitial = ParseFloorPriceConfiguration(interstitial, AdType.Interstitial);
-                    }
-                    if (floorPriceData.TryGetValue("rewarded_configuration", out var rewarded))
-                    {
-                        insights._rewarded = ParseFloorPriceConfiguration(rewarded, AdType.Rewarded);
-                    }
-                }
+                insights._churn = new Churn(JsonUtility.FromJson<ChurnDto>(adapterResponse));
             }
-
+            else if (adapterResponseType == Insights.Banner)
+            {
+                insights._banner = new AdInsight(AdType.Banner, JsonUtility.FromJson<AdConfigurationDto>(adapterResponse));
+            }
+            else if (adapterResponseType == Insights.Interstitial)
+            {
+                insights._interstitial = new AdInsight(AdType.Interstitial, JsonUtility.FromJson<AdConfigurationDto>(adapterResponse));
+            }
+            else if (adapterResponseType == Insights.Rewarded)
+            {
+                insights._rewarded = new AdInsight(AdType.Rewarded, JsonUtility.FromJson<AdConfigurationDto>(adapterResponse));
+            }
+            
             try
             {
                 lock (_insightRequests)
@@ -411,20 +456,71 @@ namespace Nefta
             }
         }
         
-        private static AdInsight ParseFloorPriceConfiguration(object floorPriceConfiguration, AdType adType)
+        internal static string JavaScriptStringEncode(string value)
         {
-            var adInsightData = (Dictionary<string, object>)floorPriceConfiguration;
-            AdInsight adInsight = new AdInsight();
-            adInsight._type = adType;
-            if (adInsightData.TryGetValue("floor_price", out var floorPrice))
+            var len = value.Length;
+            var needEncode = false;
+            char c;
+            for (var i = 0; i < len; i++)
             {
-                adInsight._floorPrice = Convert.ToDouble(floorPrice);
+                c = value [i];
+
+                if (c >= 0 && c <= 31 || c == 34 || c == 39 || c == 60 || c == 62 || c == 92)
+                {
+                    needEncode = true;
+                    break;
+                }
             }
-            if (adInsightData.TryGetValue("ad_unit", out var adUnit))
+
+            if (!needEncode)
             {
-                adInsight._adUnit = (string) adUnit;
+                return value;
             }
-            return adInsight;
+            
+            var sb = new StringBuilder();
+            for (var i = 0; i < len; i++)
+            {
+                c = value [i];
+                if (c >= 0 && c <= 7 || c == 11 || c >= 14 && c <= 31 || c == 39 || c == 60 || c == 62)
+                {
+                    sb.AppendFormat ("\\u{0:x4}", (int)c);
+                }
+                else switch ((int)c)
+                {
+                    case 8:
+                        sb.Append ("\\b");
+                        break;
+
+                    case 9:
+                        sb.Append ("\\t");
+                        break;
+
+                    case 10:
+                        sb.Append ("\\n");
+                        break;
+
+                    case 12:
+                        sb.Append ("\\f");
+                        break;
+
+                    case 13:
+                        sb.Append ("\\r");
+                        break;
+
+                    case 34:
+                        sb.Append ("\\\"");
+                        break;
+
+                    case 92:
+                        sb.Append ("\\\\");
+                        break;
+
+                    default:
+                        sb.Append (c);
+                        break;
+                }
+            }
+            return sb.ToString ();
         }
     }
 }

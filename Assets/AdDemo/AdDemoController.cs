@@ -26,12 +26,14 @@ namespace AdDemo
         private void Awake()
         {
             Adapter.EnableLogging(true);
+            Adapter.SetExtraParameter(Adapter.ExtParams.TestGroup, "split-is");
             Adapter.Init(_neftaAppId);
             
             IronSource.Agent.setMetaData("is_test_suite", "enable");
-            IronSourceEvents.onSegmentReceivedEvent += SegmentReceivedEvent;
             LevelPlay.OnInitSuccess += OnInitSuccess;
             LevelPlay.OnInitFailed += OnInitFailed;
+            // Done implicitly in Adapter Init
+            // LevelPlay.OnImpressionDataReady += Adapter.OnLevelPlayImpression;
             LevelPlay.Init(_appKey);
             
             LevelPlay.ValidateIntegration();
@@ -42,7 +44,7 @@ namespace AdDemo
             
             _networkToggle.onValueChanged.AddListener(OnNetworkToggled);
             _testSuiteButton.onClick.AddListener(OnTestSuiteClick);
-            SetSegment(true);
+            SetSegment(false);
             
 #if UNITY_EDITOR
             OnInitSuccess(null);
@@ -68,7 +70,7 @@ namespace AdDemo
 
         private void OnNetworkToggled(bool isOn)
         {
-            SetSegment(isOn);
+            //SetSegment(isOn);
         }
         
         private void OnTestSuiteClick()
@@ -83,11 +85,6 @@ namespace AdDemo
             LevelPlay.SetSegment(networkSegment);
 
             Debug.Log("Selected segment: "+ networkSegment.SegmentName);
-        }
-
-        private void SegmentReceivedEvent(string segment)
-        {
-            Debug.Log("SegmentReceivedEvent: "+ segment);
         }
     }
 }

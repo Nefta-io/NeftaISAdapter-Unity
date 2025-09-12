@@ -22,13 +22,35 @@ namespace Nefta
         public double _d14_probability;
         public double _d30_probability;
         public string _probability_confidence;
+        
+        public Churn(ChurnDto dto)
+        {
+            if (dto != null)
+            {
+                _d1_probability = dto.d1_probability;
+                _d3_probability = dto.d3_probability;
+                _d7_probability = dto.d7_probability;
+                _d14_probability = dto.d14_probability;
+                _d30_probability = dto.d30_probability;
+                _probability_confidence = dto.probability_confidence;
+            }
+        }
     }
     
     public class AdInsight
     {
+        public int _adOpportunityId;
         public Adapter.AdType _type;
         public double _floorPrice;
         public string _adUnit;
+        
+        public AdInsight(Adapter.AdType type, AdConfigurationDto dto)
+        {
+            _type = type;
+            _adOpportunityId = dto.ad_opportunity_id;
+            _floorPrice = dto.floor_price;
+            _adUnit = dto.ad_unit;
+        }
         
         public override string ToString()
         {

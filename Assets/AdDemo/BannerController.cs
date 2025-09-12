@@ -26,7 +26,7 @@ namespace AdDemo
         
         private void GetInsightsAndLoad()
         {
-            Adapter.GetInsights(Insights.Banner, Load, 5);
+            Adapter.GetInsights(Insights.Banner, _usedInsight, Load, 5);
         }
         
         private void Load(Insights insights)
@@ -57,7 +57,7 @@ namespace AdDemo
         
         private void OnAdLoadFailed(LevelPlayAdError error)
         {
-            Adapter.OnExternalMediationRequestFailed(Adapter.AdType.Banner, _usedInsight, _requestedFloorPrice, error);
+            Adapter.OnExternalMediationRequestFailed(error);
             
             SetStatus($"OnAdLoadFailed {error}");
             
@@ -66,7 +66,7 @@ namespace AdDemo
         
         private void OnAdLoaded(LevelPlayAdInfo adInfo)
         {
-            Adapter.OnExternalMediationRequestLoaded(Adapter.AdType.Banner, _usedInsight, _requestedFloorPrice, adInfo);
+            Adapter.OnExternalMediationRequestLoaded(adInfo);
             
             SetStatus($"OnAdLoaded {adInfo}");
         }
@@ -115,6 +115,8 @@ namespace AdDemo
 
         private void OnAdClicked(LevelPlayAdInfo adInfo)
         {
+            Adapter.OnLevelPlayClick(adInfo);
+            
             SetStatus($"OnAdClicked {adInfo}");
         }
 
@@ -146,7 +148,7 @@ namespace AdDemo
         private void SetStatus(string status)
         {
             _status.text = status;
-            Debug.Log(status);
+            Debug.Log($"NeftaPluginIS Banner {status}");
         }
 
         private void AddDemoGameEventExample()

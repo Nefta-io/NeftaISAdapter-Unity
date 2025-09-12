@@ -11,9 +11,14 @@ namespace Nefta
         {
         }
 
-        public void IOnInsights(int id, string insights)
+        public void IOnReady(string adUnits)
         {
-            Adapter.IOnInsights(id, insights);
+            Adapter.IOnReady(adUnits);
+        }
+
+        public void IOnInsights(int id, int adapterResponseType, string insights)
+        {
+            Adapter.IOnInsights(id, adapterResponseType, insights);
         }
     }
 }

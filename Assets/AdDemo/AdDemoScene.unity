@@ -773,54 +773,6 @@ PrefabInstance:
       propertyPath: m_Name
       value: InterstitialController
       objectReference: {fileID: 0}
-    - target: {fileID: 433948556481644570, guid: 27e86724ee7ee4b27a2282fcecb309c5, type: 3}
-      propertyPath: m_AnchorMax.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 433948556481644570, guid: 27e86724ee7ee4b27a2282fcecb309c5, type: 3}
-      propertyPath: m_AnchorMin.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 433948556481644570, guid: 27e86724ee7ee4b27a2282fcecb309c5, type: 3}
-      propertyPath: m_SizeDelta.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 433948556481644570, guid: 27e86724ee7ee4b27a2282fcecb309c5, type: 3}
-      propertyPath: m_SizeDelta.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 433948556481644570, guid: 27e86724ee7ee4b27a2282fcecb309c5, type: 3}
-      propertyPath: m_AnchoredPosition.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 433948556481644570, guid: 27e86724ee7ee4b27a2282fcecb309c5, type: 3}
-      propertyPath: m_AnchoredPosition.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 7333777673533998232, guid: 27e86724ee7ee4b27a2282fcecb309c5, type: 3}
-      propertyPath: m_AnchorMax.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 7333777673533998232, guid: 27e86724ee7ee4b27a2282fcecb309c5, type: 3}
-      propertyPath: m_AnchorMin.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 7333777673533998232, guid: 27e86724ee7ee4b27a2282fcecb309c5, type: 3}
-      propertyPath: m_SizeDelta.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 7333777673533998232, guid: 27e86724ee7ee4b27a2282fcecb309c5, type: 3}
-      propertyPath: m_SizeDelta.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 7333777673533998232, guid: 27e86724ee7ee4b27a2282fcecb309c5, type: 3}
-      propertyPath: m_AnchoredPosition.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 7333777673533998232, guid: 27e86724ee7ee4b27a2282fcecb309c5, type: 3}
-      propertyPath: m_AnchoredPosition.y
-      value: 0
-      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
@@ -1893,7 +1845,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   m_Material: {fileID: 0}
-  m_Color: {r: 0.8392157, g: 0.36078432, b: 0.6666667, a: 1}
+  m_Color: {r: 0.6509804, g: 0.14901961, b: 0.7490196, a: 1}
   m_RaycastTarget: 1
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
