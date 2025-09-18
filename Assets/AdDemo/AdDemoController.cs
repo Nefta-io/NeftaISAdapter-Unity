@@ -14,12 +14,10 @@ namespace AdDemo
         private const string _appKey = "1bb635bc5";
         private const string _neftaAppId = "5657497763315712";
 #endif
-        private bool _isBannerShown;
 
         [SerializeField] private Toggle _networkToggle;
         [SerializeField] private Button _testSuiteButton;
         
-        [SerializeField] private BannerController _banner;
         [SerializeField] private InterstitialController _interstitial;
         [SerializeField] private RewardedController _rewarded;
         
@@ -33,12 +31,11 @@ namespace AdDemo
             LevelPlay.OnInitSuccess += OnInitSuccess;
             LevelPlay.OnInitFailed += OnInitFailed;
             // Done implicitly in Adapter Init
-            // LevelPlay.OnImpressionDataReady += Adapter.OnLevelPlayImpression;
+            //LevelPlay.OnImpressionDataReady += Adapter.OnLevelPlayImpression;
             LevelPlay.Init(_appKey);
             
             LevelPlay.ValidateIntegration();
             
-            _banner.Init();
             _interstitial.Init();
             _rewarded.Init();
             
@@ -58,7 +55,6 @@ namespace AdDemo
         
         private void OnInitSuccess(LevelPlayConfiguration configuration)
         {
-            _banner.OnReady();
             _interstitial.OnReady();
             _rewarded.OnReady();
         }
