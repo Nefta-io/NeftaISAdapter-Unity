@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Nefta.Editor;
 using UnityEditor;
@@ -8,6 +9,27 @@ namespace Editor
 {
     public class Builder
     {
+        [MenuItem("Nefta developer/Export Nefta Custom Adapter SDK", false, int.MaxValue)]
+        private static void ExportAdSdkPackage()
+        {
+            var packageName = $"NeftaIS_SDK_{Application.version}.unitypackage";
+            try
+            {
+                AssetDatabase.ExportPackage("Assets/Nefta", packageName, ExportPackageOptions.Recurse);
+                Debug.Log($"Finished exporting {packageName}");   
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"Error exporting {packageName}: {e.Message}");   
+            }
+        }
+        
+        [MenuItem("Nefta developer/Open export location")]
+        private static void OpenExportLocation()
+        {
+            EditorUtility.RevealInFinder(Application.dataPath);
+        }
+        
         private static void Build(BuildTarget target, string outPath)
         {
             var scenes = new List<string>();
@@ -24,7 +46,7 @@ namespace Editor
             };
             
             NeftaWindow.TryGetPluginImporters();
-            NeftaWindow.TogglePlugins(true);
+            NeftaWindow.TogglePlugins(false);
             
             EditorUserBuildSettings.exportAsGoogleAndroidProject = false;
             

@@ -82,26 +82,20 @@ namespace AdDemo
             {
                 SetStatus($"OnAdLoadFailed Dynamic {error}");
 
+                _dynamicInterstitial = null;
                 if (_load.isOn)
                 {
                     StartCoroutine(ReTryLoad(true));
-                }
-                else
-                {
-                    _dynamicInterstitial = null; 
                 }
             }
             else
             {
                 SetStatus($"OnAdLoadFailed Default {error}");
 
+                _defaultInterstitial = null; 
                 if (_load.isOn)
                 {
                     StartCoroutine(ReTryLoad(false));
-                }
-                else
-                {
-                    _defaultInterstitial = null; 
                 }
             }
         }
@@ -141,11 +135,17 @@ namespace AdDemo
             {
                 if (isDynamic)
                 {
-                    GetInsightsAndLoad(_dynamicInsight);   
+                    if (_dynamicInterstitial == null)
+                    {
+                        GetInsightsAndLoad(_dynamicInsight);     
+                    }
                 }
                 else
                 {
-                    LoadDefault();
+                    if (_defaultInterstitial == null)
+                    {
+                        LoadDefault();     
+                    }
                 }
             }
         }
