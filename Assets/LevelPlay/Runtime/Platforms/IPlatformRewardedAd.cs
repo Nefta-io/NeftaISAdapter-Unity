@@ -6,7 +6,7 @@ using System.Runtime.CompilerServices;
 
 namespace Unity.Services.LevelPlay
 {
-    internal interface IPlatformRewardedAd : IDisposable
+    public interface IPlatformRewardedAd : IDisposable
     {
 #pragma warning disable 0618
         event Action<com.unity3d.mediation.LevelPlayAdInfo> OnAdLoaded;

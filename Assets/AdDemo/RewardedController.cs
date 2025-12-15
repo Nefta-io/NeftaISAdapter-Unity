@@ -10,18 +10,125 @@ namespace AdDemo
     public class RewardedController : MonoBehaviour
     {
 #if UNITY_IOS
-        private const string DynamicAdUnitId = "p3dh8r1mm3ua8fvv";
-        private const string DefaultAdUnitId = "doucurq8qtlnuz7p";
+        private const string AdUnitA = "p3dh8r1mm3ua8fvv";
+        private const string AdUnitB = "doucurq8qtlnuz7p";
 #else
-        private const string DynamicAdUnitId = "x3helvrx8elhig4z";
-        private const string DefaultAdUnitId = "kftiv52431x91zuk";
+        private const string AdUnitA = "x3helvrx8elhig4z";
+        private const string AdUnitB = "kftiv52431x91zuk";
 #endif
         
-        private LevelPlayRewardedAd _dynamicRewarded;
-        private double _dynamicAdRevenue;
-        private AdInsight _dynamicInsight;
-        private LevelPlayRewardedAd _defaultRewarded;
-        private double _defaultAdRevenue;
+        private enum State
+        {
+            Idle,
+            LoadingWithInsights,
+            Loading,
+            Ready
+        }
+
+        private class AdRequest
+        {
+            public string AdUnitId;
+            public LevelPlayRewardedAd Rewarded;
+            public State State;
+            public AdInsight Insight;
+            public double Revenue;
+
+            public AdRequest(string adUnitId)
+            {
+                AdUnitId = adUnitId;
+            }
+            
+            public void Load()
+            {
+                Rewarded.OnAdLoaded += OnAdLoaded;
+                Rewarded.OnAdLoadFailed += OnAdLoadFailed;
+                Rewarded.OnAdDisplayed += OnAdDisplayed;
+                Rewarded.OnAdDisplayFailed += OnAdDisplayFailed;
+                Rewarded.OnAdClicked += OnAdClicked;
+                Rewarded.OnAdRewarded += OnAdRewarded;
+                Rewarded.OnAdInfoChanged += OnAdInfoChanged;
+                Rewarded.OnAdClosed += OnAdClosed;
+                Rewarded.LoadAd();
+            }
+            
+            private void OnAdLoadFailed(LevelPlayAdError error)
+            {
+                Adapter.OnExternalMediationRequestFailed(error);
+
+                Instance.SetStatus($"OnAdLoadFailed {AdUnitId}: {error}");
+
+                Rewarded = null;
+                AfterLoadFail();
+            }
+
+            public void AfterLoadFail()
+            {
+                Instance.StartCoroutine(ReTryLoad());
+
+                Instance.OnTrackLoad(false);
+            }
+        
+            private IEnumerator ReTryLoad()
+            {
+                yield return new WaitForSeconds(5f);
+               
+                State = State.Idle;
+                Instance.RetryLoading();
+            }
+            
+            private void OnAdLoaded(LevelPlayAdInfo info)
+            {
+                Adapter.OnExternalMediationRequestLoaded(info);
+                
+                Instance.SetStatus($"Loaded {AdUnitId} at: {info.Revenue}");
+
+                Insight = null;
+                Revenue = info.Revenue ?? 0;
+                State = State.Ready;
+
+                Instance.OnTrackLoad(true);
+            }
+        
+            private void OnAdClicked(LevelPlayAdInfo info)
+            {
+                Adapter.OnLevelPlayClick(info);
+            
+                Instance.SetStatus($"OnAdClicked {info}");
+            }
+            
+            private void OnAdDisplayFailed(LevelPlayAdDisplayInfoError error)
+            {
+                Instance.SetStatus($"OnAdDisplayFailed {error}");
+                
+                Instance.RetryLoading();
+            }
+            
+            private void OnAdRewarded(LevelPlayAdInfo info, LevelPlayReward reward)
+            {
+                Instance.SetStatus($"OnAdRewarded {info}: {reward}");
+            }
+
+            private void OnAdDisplayed(LevelPlayAdInfo info)
+            {
+                Instance.SetStatus($"OnAdDisplayed {info}");
+            }
+
+            private void OnAdInfoChanged(LevelPlayAdInfo info)
+            {
+                Instance.SetStatus($"OnAdInfoChanged {info}");
+            }
+        
+            private void OnAdClosed(LevelPlayAdInfo info)
+            {
+                Instance.SetStatus($"OnAdClosed {info}");
+
+                Instance.RetryLoading();
+            }
+        }
+
+        private AdRequest _adRequestA;
+        private AdRequest _adRequestB;
+        private bool _isFirstResponseReceived;
         
         [SerializeField] private Text _title;
         [SerializeField] private Toggle _load;
@@ -29,137 +136,79 @@ namespace AdDemo
         [SerializeField] private Button _show;
         [SerializeField] private Text _status;
         
+        public static RewardedController Instance;
+        
         private void StartLoading()
         {
-            if (_dynamicRewarded == null)
-            {
-                GetInsightsAndLoad(null);   
-            }
-            if (_defaultRewarded == null)
-            {
-                LoadDefault();   
-            }
-        }
-        
-        private void GetInsightsAndLoad(AdInsight previousInsight)
-        {
-            Adapter.GetInsights(Insights.Rewarded, previousInsight, LoadWithInsights, 5);
-        }
-        
-        private void LoadWithInsights(Insights insights)
-        {
-            _dynamicInsight = insights._rewarded;
-            if (_dynamicInsight != null) {
-                SetStatus($"Loading Dynamic Rewarded with: {_dynamicInsight}");
-                
-                var config = new LevelPlayRewardedAd.Config.Builder()
-                    .SetBidFloor(_dynamicInsight._floorPrice)
-                    .Build();
-                _dynamicRewarded = new LevelPlayRewardedAd(DynamicAdUnitId, config);
-                Load(_dynamicRewarded);
-                
-                Adapter.OnExternalMediationRequest(_dynamicRewarded, _dynamicInsight);
-            }
+            Load(_adRequestA, _adRequestB.State);
+            Load(_adRequestB, _adRequestA.State);
         }
 
-        private void LoadDefault()
+        private void Load(AdRequest request, State otherState)
         {
-            SetStatus($"Loading Default Rewarded {DefaultAdUnitId}");
-            
-            _defaultRewarded = new LevelPlayRewardedAd(DefaultAdUnitId);
-            Load(_defaultRewarded);
-            
-            Adapter.OnExternalMediationRequest(_defaultRewarded);
-        }
-        
-        private void OnAdLoadFailed(LevelPlayAdError error)
-        {
-            Adapter.OnExternalMediationRequestFailed(error);
-
-            if (_dynamicRewarded != null && error.AdId == _dynamicRewarded.GetAdId())
+            if (request.State == State.Idle)
             {
-                SetStatus($"OnAdLoadFailed Dynamic {error}");
-
-                _dynamicRewarded = null; 
-                if (_load.isOn)
+                if (otherState != State.LoadingWithInsights)
                 {
-                    StartCoroutine(ReTryLoad(true));
+                    GetInsightsAndLoad(request);
                 }
-            }
-            else
-            {
-                SetStatus($"OnAdLoadFailed Default {error}");
-
-                _defaultRewarded = null; 
-                if (_load.isOn)
+                else if (_isFirstResponseReceived)
                 {
-                    StartCoroutine(ReTryLoad(false));
+                    LoadDefault(request);
                 }
             }
         }
         
-        private void OnAdLoaded(LevelPlayAdInfo info)
+        private void GetInsightsAndLoad(AdRequest adRequest)
         {
-            Adapter.OnExternalMediationRequestLoaded(info);
+            adRequest.State = State.LoadingWithInsights;
             
-            if (_dynamicRewarded != null && info.AdId == _dynamicRewarded.GetAdId())
+            Adapter.GetInsights(Insights.Rewarded, adRequest.Insight, (Insights insights) =>
             {
-                SetStatus($"OnAdLoaded Dynamic {info}");
-
-                _dynamicAdRevenue = info.Revenue ?? 0;
-            }
-            else
-            {
-                SetStatus($"OnAdLoaded Default {info}");
-
-                _defaultAdRevenue = info.Revenue ?? 0;
-            }
-            
-            UpdateShowButton();
-        }
-        
-        private IEnumerator ReTryLoad(bool isDynamic)
-        {
-            yield return new WaitForSeconds(5f);
-
-            if (_load.isOn)
-            {
-                if (isDynamic)
+                SetStatus($"LoadWithInsights: {insights}");
+                if (insights._rewarded != null)
                 {
-                    if (_dynamicRewarded == null)
-                    {
-                        GetInsightsAndLoad(_dynamicInsight);    
-                    }
+                    adRequest.Insight = insights._rewarded;
+                    var config = new LevelPlayRewardedAd.Config.Builder()
+                        .SetBidFloor(adRequest.Insight._floorPrice)
+                        .Build();
+                    adRequest.Rewarded = new LevelPlayRewardedAd(AdUnitA, config);
+                    
+                    Adapter.OnExternalMediationRequest(adRequest.Rewarded, adRequest.Insight);
+                    
+                    adRequest.Load();
                 }
                 else
                 {
-                    if (_defaultRewarded == null)
-                    {
-                        LoadDefault();
-                    }
+                    adRequest.AfterLoadFail();
                 }
-            }
+            }, 5);
         }
         
-        private void OnAdClicked(LevelPlayAdInfo info)
+        private void LoadDefault(AdRequest adRequest)
         {
-            Adapter.OnLevelPlayClick(info);
+            adRequest.State = State.Loading;
             
-            SetStatus($"OnAdClicked {info}");
+            SetStatus($"Loading {adRequest.AdUnitId} as Default");
+
+            adRequest.Rewarded = new LevelPlayRewardedAd(adRequest.AdUnitId);
+            
+            Adapter.OnExternalMediationRequest(adRequest.Rewarded);
+            
+            adRequest.Load();
         }
         
-        public void Init()
+        private void Awake()
         {
+            Instance = this;
+            
+            _adRequestA = new AdRequest(AdUnitA);
+            _adRequestA = new AdRequest(AdUnitB);
+            
             _load.onValueChanged.AddListener(OnLoadChanged);
             _show.onClick.AddListener(OnShowClick);
 
-            _load.interactable = false;
             _show.interactable = false;
-        }
-        
-        public void OnReady()
-        {
-            _load.interactable = true;
         }
         
         private void OnLoadChanged(bool isOn)
@@ -174,93 +223,56 @@ namespace AdDemo
         
         private void OnShowClick()
         {
-            bool isShown = false;
-            if (_dynamicAdRevenue >= 0)
+            var isShown = false;
+            if (_adRequestA.State == State.Ready)
             {
-                if (_defaultAdRevenue > _dynamicAdRevenue)
+                if (_adRequestB.State == State.Ready && _adRequestB.Revenue > _adRequestA.Revenue)
                 {
-                    isShown = TryShowDefault();
+                    isShown = TryShow(_adRequestB);
                 }
                 if (!isShown)
                 {
-                    isShown = TryShowDynamic();
+                    isShown = TryShow(_adRequestA);
                 }
             }
-            if (!isShown && _defaultAdRevenue >= 0)
+            if (!isShown && _adRequestB.State == State.Ready)
             {
-                TryShowDefault();
+                TryShow(_adRequestB);
             }
             UpdateShowButton();
         }
 
-        private bool TryShowDynamic()
+        private bool TryShow(AdRequest request)
         {
-            var isShown = false;
-            if (_dynamicRewarded.IsAdReady())
-            {
-                _dynamicRewarded.ShowAd();
-                isShown = true;
-            }
-            _dynamicAdRevenue = -1;
-            _dynamicRewarded = null;
-            return isShown;
-        }
+            request.State = State.Idle;
+            request.Revenue = -1;
 
-        private bool TryShowDefault()
-        {
-            var isShown = false;
-            if (_defaultRewarded.IsAdReady())
+            if (request.Rewarded.IsAdReady())
             {
-                _defaultRewarded.ShowAd();
-                isShown = true;
+                request.Rewarded.ShowAd();
+                return true;
             }
-            _defaultAdRevenue = -1;
-            _defaultRewarded = null;
-            return isShown;
+            RetryLoading();
+            return false;
         }
         
-        private void Load(LevelPlayRewardedAd rewarded)
+        public void RetryLoading()
         {
-            rewarded.OnAdLoaded += OnAdLoaded;
-            rewarded.OnAdLoadFailed += OnAdLoadFailed;
-            rewarded.OnAdDisplayed += OnAdDisplayed;
-            rewarded.OnAdDisplayFailed += OnAdDisplayFailed;
-            rewarded.OnAdRewarded += OnAdDynamicRewarded;
-            rewarded.OnAdClicked += OnAdClicked;
-            rewarded.OnAdInfoChanged += OnAdInfoChanged;
-            rewarded.OnAdClosed += OnAdClosed;
-            rewarded.LoadAd();
-        }
-        
-        private void OnAdDisplayFailed(LevelPlayAdDisplayInfoError error)
-        {
-            SetStatus($"OnAdDisplayFailed {error}");
-        }
-        
-        private void OnAdDisplayed(LevelPlayAdInfo info)
-        {
-            SetStatus($"OnAdDisplayed {info}");
-        }
-        
-        private void OnAdDynamicRewarded(LevelPlayAdInfo info, LevelPlayReward reward)
-        {
-            SetStatus($"OnAdRewarded {info}: {reward}");
-        }
-        
-        private void OnAdInfoChanged(LevelPlayAdInfo info)
-        {
-            SetStatus($"OnAdInfoChanged {info}");
-        }
-        
-        private void OnAdClosed(LevelPlayAdInfo info)
-        {
-            SetStatus($"OnAdClosed {info}");
-            
-            // start new cycle
             if (_load.isOn)
             {
                 StartLoading();
             }
+        }
+
+        public void OnTrackLoad(bool success)
+        {
+            if (success)
+            {
+                UpdateShowButton();
+            }
+
+            _isFirstResponseReceived = true;
+            RetryLoading();
         }
         
         private void SetStatus(string status)
@@ -271,7 +283,7 @@ namespace AdDemo
 
         private void UpdateShowButton()
         {
-            _show.interactable = _dynamicAdRevenue >= 0 || _defaultAdRevenue >= 0;
+            _show.interactable = _adRequestA.State == State.Ready || _adRequestB.State == State.Ready;
         }
 
         private void AddDemoGameEventExample()

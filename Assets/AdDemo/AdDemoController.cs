@@ -8,55 +8,54 @@ namespace AdDemo
     public class AdDemoController : MonoBehaviour
     {
 #if UNITY_IOS
-        private const string _appKey = "1c0431145";
         private const string _neftaAppId = "5717797661310976";
 #else // UNITY_ANDROID
-        private const string _appKey = "1bb635bc5";
         private const string _neftaAppId = "5657497763315712";
 #endif
 
+        [SerializeField] private Text _title;
         [SerializeField] private Toggle _networkToggle;
         [SerializeField] private Button _testSuiteButton;
-        
-        [SerializeField] private InterstitialController _interstitial;
-        [SerializeField] private RewardedController _rewarded;
+
+        private bool _isSimulator;
         
         private void Awake()
         {
+            string apiKey = null;
+            var demoConfig = Resources.Load<DemoConfig>("DemoConfig");
+            if (demoConfig != null)
+            {
+                apiKey = demoConfig.GetApiKey();
+                ToggleUI(demoConfig._isSimulator);
+                
+                _title.GetComponent<Button>().onClick.AddListener(() => ToggleUI(!_isSimulator));
+            }
+
+            _title.text = $"IronSource Integration {LevelPlay.PluginVersion}";
+            
             Adapter.EnableLogging(true);
-            Adapter.SetExtraParameter(Adapter.ExtParams.TestGroup, "split-is");
             Adapter.Init(_neftaAppId);
+            Adapter.OnReady += config =>
+            {
+                Debug.Log($"[NeftaPluginIS] Should bypass Nefta optimization? {config._skipOptimization}");
+            };
             
             IronSource.Agent.setMetaData("is_test_suite", "enable");
-            LevelPlay.OnInitSuccess += OnInitSuccess;
             LevelPlay.OnInitFailed += OnInitFailed;
             // Done implicitly in Adapter Init
             //LevelPlay.OnImpressionDataReady += Adapter.OnLevelPlayImpression;
-            LevelPlay.Init(_appKey);
+            LevelPlay.Init(apiKey);
             
             LevelPlay.ValidateIntegration();
             
-            _interstitial.Init();
-            _rewarded.Init();
-            
-            _networkToggle.onValueChanged.AddListener(OnNetworkToggled);
-            _testSuiteButton.onClick.AddListener(OnTestSuiteClick);
+            _networkToggle?.onValueChanged.AddListener(OnNetworkToggled);
+            _testSuiteButton?.onClick.AddListener(OnTestSuiteClick);
             SetSegment(false);
-            
-#if UNITY_EDITOR
-            OnInitSuccess(null);
-#endif
         }
         
         private void OnApplicationPause(bool isPaused)
         {
             LevelPlay.SetPauseGame(isPaused);
-        }
-        
-        private void OnInitSuccess(LevelPlayConfiguration configuration)
-        {
-            _interstitial.OnReady();
-            _rewarded.OnReady();
         }
 
         private void OnInitFailed(LevelPlayInitError error)
@@ -81,6 +80,18 @@ namespace AdDemo
             LevelPlay.SetSegment(networkSegment);
 
             Debug.Log("Selected segment: "+ networkSegment.SegmentName);
+        }
+
+        private void ToggleUI(bool isSimulator)
+        {
+            _isSimulator = isSimulator;
+            
+            transform.Find("pnl_content/InterstitialSimulatorController").gameObject.SetActive(isSimulator);
+            transform.Find("pnl_content/RewardedSimulatorController").gameObject.SetActive(isSimulator);
+            
+            transform.Find("pnl_content/TestingController").gameObject.SetActive(!isSimulator);
+            transform.Find("pnl_content/InterstitialController").gameObject.SetActive(!isSimulator);
+            transform.Find("pnl_content/RewardedController").gameObject.SetActive(!isSimulator);
         }
     }
 }

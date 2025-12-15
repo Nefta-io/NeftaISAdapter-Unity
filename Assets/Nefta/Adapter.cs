@@ -10,6 +10,7 @@ using System.Globalization;
 using System.Text;
 using System.Threading;
 using Nefta.Events;
+using Nefta.NeftaCustomAdapter;
 using UnityEngine;
 
 namespace Nefta
@@ -35,6 +36,26 @@ namespace Nefta
             MatureAudience = 4
         }
         
+        [Serializable]
+        internal class InitConfigurationDto
+        {
+            public bool skipOptimization;
+            public string providerAdUnits;
+            public int disabledFeatures;
+        }
+        
+        [Flags]
+        private enum Feature {
+            Insights = 1,
+            Exchange = 1 << 1,
+            GameEvents = 1 << 2,
+            SessionEvents = 1 << 3,
+            ExternalMediationResponse = 1 << 4,
+            ExternalMediationRequest = 1 << 5,
+            ExternalMediationImpression = 1 << 6,
+            ExternalMediationClick = 1 << 7,
+        }
+        
         public struct ExtParams
         {
             public const string TestGroup = "test_group";
@@ -44,6 +65,8 @@ namespace Nefta
             public const string AttributionCreative = "attribution_creative";
             public const string AttributionIncentivized = "attribution_incentivized";
         }
+
+        private const string _mediationProvider = "ironsource-levelplay";
         
         private class InsightRequest
         {
@@ -63,17 +86,16 @@ namespace Nefta
 #if UNITY_EDITOR
         private static NeftaPlugin _plugin;
 #elif UNITY_IOS
-        private delegate void OnReadyDelegate(string response);
-
-        [MonoPInvokeCallback(typeof(OnReadyDelegate))] 
-        private static void OnInternalReady(string response) {
-            IOnReady(response);
-        }
-
+        private delegate void OnReadyDelegate(string initConfig);
         private delegate void OnInsightsDelegate(int requestId, int adapterResponseType, string adapterResponse);
 
+        [MonoPInvokeCallback(typeof(OnReadyDelegate))] 
+        private static void OnReadyBridge(string initConfig) {
+            IOnReady(initConfig);
+        }
+
         [MonoPInvokeCallback(typeof(OnInsightsDelegate))] 
-        private static void OnInsights(int requestId, int adapterResponseType, string adapterResponse) {
+        private static void OnInsightsBridge(int requestId, int adapterResponseType, string adapterResponse) {
             IOnInsights(requestId, adapterResponseType, adapterResponse);
         }
 
@@ -84,16 +106,16 @@ namespace Nefta
         private static extern void NeftaPlugin_SetExtraParameter(string key, string value);
 
         [DllImport ("__Internal")]
-        private static extern void NeftaPlugin_Init(string appId, bool sendImpression, OnReadyDelegate onReady, OnInsightsDelegate onInsights);
+        private static extern void NeftaPlugin_Init(string appId, OnReadyDelegate onReady, OnInsightsDelegate onInsights, bool sendImpressions);
 
         [DllImport ("__Internal")]
         private static extern void NeftaPlugin_Record(int type, int category, int subCategory, string nameValue, long value, string customPayload);
 
         [DllImport ("__Internal")]
-        private static extern void NeftaPlugin_OnExternalMediationRequest(string provider, int adType, string id, string requestedAdUnitId, double requestedFloorPrice, int adOpportunityId);
+        private static extern void NeftaPlugin_OnExternalMediationRequest(string provider, int adType, string id, string requestedAdUnitId, double requestedFloorPrice, int requestId);
 
         [DllImport ("__Internal")]
-        private static extern void NeftaPlugin_OnExternalMediationResponse(string provider, string id, string id2, double revenue, string precision, int status, string providerStatus, string networkStatus);
+        private static extern void NeftaPlugin_OnExternalMediationResponseAsString(string provider, string id, string id2, double revenue, string precision, int status, string providerStatus, string networkStatus, string baseData);
 
         [DllImport ("__Internal")]
         private static extern void NeftaPlugin_OnExternalMediationImpressionAsString(bool isClick, string provider, string data, string id, string id2);
@@ -102,10 +124,13 @@ namespace Nefta
         private static extern string NeftaPlugin_GetNuid(bool present);
 
         [DllImport ("__Internal")]
+        private static extern void NeftaPlugin_SetTracking(bool isAuthorized);
+
+        [DllImport ("__Internal")]
         private static extern void NeftaPlugin_SetContentRating(string rating);
         
         [DllImport ("__Internal")]
-        private static extern void NeftaPlugin_GetInsights(int requestId, int insights, int previousAdOpportunityId, int timeoutInSeconds);
+        private static extern void NeftaPlugin_GetInsights(int requestId, int insights, int previousRequestId, int timeoutInSeconds);
         
         [DllImport ("__Internal")]
         private static extern void NeftaPlugin_SetOverride(string root);
@@ -126,8 +151,7 @@ namespace Nefta
 
         private static List<InsightRequest> _insightRequests;
         private static int _insightId;
-        
-        public static Action<string[]> OnReady;
+        private static Feature _disabledFeatures;
         
         public static void EnableLogging(bool enable)
         {
@@ -140,13 +164,15 @@ namespace Nefta
 #endif
         }
         
+        public static Action<InitConfiguration> OnReady;
+        
         public static void Init(string appId, bool sendImpressions=true, bool simulateAdsInEditor=false)
         {
 #if UNITY_EDITOR
             _plugin = NeftaPlugin.Init(appId, simulateAdsInEditor);
             _plugin._adapterListener = new NeftaAdapterListener();
 #elif UNITY_IOS
-            NeftaPlugin_Init(appId, sendImpressions, OnInternalReady, OnInsights);
+            NeftaPlugin_Init(appId, OnReadyBridge, OnInsightsBridge, sendImpressions);
 #elif UNITY_ANDROID
             AndroidJavaClass unityClass = new AndroidJavaClass("com.unity3d.player.UnityPlayer");
             var unityActivity = unityClass.GetStatic<AndroidJavaObject>("currentActivity");
@@ -159,25 +185,27 @@ namespace Nefta
 
         public static void Record(GameEvent gameEvent)
         {
+            if ((_disabledFeatures & Feature.GameEvents) != 0)
+            {
+                return;
+            }
+            
             var type = gameEvent._eventType;
             var category = gameEvent._category;
             var subCategory = gameEvent._subCategory;
             var name = gameEvent._name;
-            if (name != null)
-            {
-                name = JavaScriptStringEncode(name);
-            }
             var value = gameEvent._value;
             var customPayload = gameEvent._customString;
-            if (customPayload != null)
-            {
-                customPayload = JavaScriptStringEncode(customPayload);
-            }
             Record(type, category, subCategory, name, value, customPayload);
         }
         
         internal static void Record(int type, int category, int subCategory, string name, long value, string customPayload)
         {
+            if ((_disabledFeatures & Feature.GameEvents) != 0)
+            {
+                return;
+            }
+            
 #if UNITY_EDITOR
             _plugin.Record(type, category, subCategory, name, value, customPayload);
 #elif UNITY_IOS
@@ -225,18 +253,18 @@ namespace Nefta
         }
         private static void OnExternalMediationRequest(AdType adType, string id, string adUnitId, AdInsight usedInsight, double requestedFloorPrice)
         {
-            var adOpportunityId = -1;
+            var requestId = -1;
             if (usedInsight != null)
             {
-                adOpportunityId = usedInsight._adOpportunityId;
+                requestId = usedInsight._requestId;
                 requestedFloorPrice = usedInsight._floorPrice;
             }
 #if UNITY_EDITOR
-            _plugin.OnExternalMediationRequest("ironsource-levelplay", (int)adType, id, adUnitId, requestedFloorPrice, adOpportunityId);
+            _plugin.OnExternalMediationRequest(_mediationProvider, (int)adType, id, adUnitId, requestedFloorPrice, requestId);
 #elif UNITY_IOS
-            NeftaPlugin_OnExternalMediationRequest("ironsource-levelplay", (int)adType, id, adUnitId, requestedFloorPrice, adOpportunityId);
+            NeftaPlugin_OnExternalMediationRequest(_mediationProvider, (int)adType, id, adUnitId, requestedFloorPrice, requestId);
 #elif UNITY_ANDROID
-            _plugin.CallStatic("OnExternalMediationRequest", "ironsource-levelplay", (int)adType, id, adUnitId, requestedFloorPrice, adOpportunityId);
+            _plugin.CallStatic("OnExternalMediationRequest", _mediationProvider, (int)adType, id, adUnitId, requestedFloorPrice, requestId);
 #endif
         }
         
@@ -266,17 +294,17 @@ namespace Nefta
             {
                 status = 2;
             }
-            OnExternalMediationResponse(error.AdId, error.AdUnitId, -1, null, status, error.ErrorCode.ToString(CultureInfo.InvariantCulture), null);
+            OnExternalMediationResponse(error.AdId, null, -1, null, status, error.ErrorCode.ToString(CultureInfo.InvariantCulture), null);
         }
         
         private static void OnExternalMediationResponse(string id, string id2, double revenue, string precision, int status, string providerStatus, string networkStatus)
         {
 #if UNITY_EDITOR
-            _plugin.OnExternalMediationResponse("ironsource-levelplay", id, id2, revenue, precision, status, providerStatus, networkStatus);
+            _plugin.OnExternalMediationResponseAsString(_mediationProvider, id, id2, revenue, precision, status, providerStatus, networkStatus, null);
 #elif UNITY_IOS
-            NeftaPlugin_OnExternalMediationResponse("ironsource-levelplay", id, id2, revenue, precision, status, providerStatus, networkStatus);
+            NeftaPlugin_OnExternalMediationResponseAsString(_mediationProvider, id, id2, revenue, precision, status, providerStatus, networkStatus, null);
 #elif UNITY_ANDROID
-            _plugin.CallStatic("OnExternalMediationResponse", "ironsource-levelplay", id, id2, revenue, precision, status, providerStatus, networkStatus);
+            _plugin.CallStatic("OnExternalMediationResponseAsString", _mediationProvider, id, id2, revenue, precision, status, providerStatus, networkStatus, null);
 #endif
         }
 
@@ -292,18 +320,15 @@ namespace Nefta
         public static void OnLevelPlayClick(Unity.Services.LevelPlay.LevelPlayAdInfo adInfo)
         {
             var revenue = (adInfo.Revenue ?? 0).ToString(CultureInfo.InvariantCulture);
-            var adUnitId = adInfo.AdUnitId;
-            if (adUnitId != null)
-            {
-                adUnitId = JavaScriptStringEncode(adUnitId);
-            }
-            var data = "{\"adFormat\":\""+ adInfo.AdFormat + "\",\"revenue\":"+ revenue + ",\"precision\":\""+ adInfo.Precision + "\",\"mediationAdUnitId\":\""+ adUnitId +"\"}";
+            var adUnitId = JavaScriptStringEncode(adInfo.AdUnitId);
+            var precision = adInfo.Precision;
+            var data = "{\"adFormat\":\""+ adInfo.AdFormat + "\",\"revenue\":"+ revenue + ",\"precision\":\""+ precision + "\",\"mediationAdUnitId\":\""+ adUnitId +"\"}";
             OnLevelPlayImpression(true, data, adInfo.AdId, null);
         }
         
         private static void OnLevelPlayImpression(bool isClick, string data, string id, string id2)
         {
-            OnExternalMediationImpression(isClick, "ironsource-levelplay", data, id, id2);
+            OnExternalMediationImpression(isClick, _mediationProvider, data, id, id2);
         }
         
         private static void OnExternalMediationImpression(bool isClick, string provider, string data, string id, string id2)
@@ -319,11 +344,17 @@ namespace Nefta
         
         public static void GetInsights(int insights, AdInsight previousInsight, OnInsightsCallback callback, int timeoutInSeconds=0)
         {
+            if ((_disabledFeatures & Feature.Insights) != 0)
+            {
+                callback(new Insights());
+                return;
+            }
+            
             var id = 0;
-            var previousAdOpportunityId = -1;
+            var previousRequestId = -1;
             if (previousInsight != null)
             {
-                previousAdOpportunityId = previousInsight._adOpportunityId;
+                previousRequestId = previousInsight._requestId;
             }
             lock (_insightRequests)
             {
@@ -334,11 +365,11 @@ namespace Nefta
             }
 
 #if UNITY_EDITOR
-            _plugin.GetInsights(id, insights, previousAdOpportunityId, timeoutInSeconds);
+            _plugin.GetInsights(id, insights, previousRequestId, timeoutInSeconds);
 #elif UNITY_IOS
-            NeftaPlugin_GetInsights(id, insights, previousAdOpportunityId, timeoutInSeconds);
+            NeftaPlugin_GetInsights(id, insights, previousRequestId, timeoutInSeconds);
 #elif UNITY_ANDROID
-            _plugin.Call("GetInsightsBridge", id, insights, previousAdOpportunityId, timeoutInSeconds);
+            _plugin.Call("GetInsightsBridge", id, insights, previousRequestId, timeoutInSeconds);
 #endif
         }
         
@@ -353,6 +384,17 @@ namespace Nefta
             nuid = _plugin.Call<string>("GetNuid", present);
 #endif
             return nuid;
+        }
+        
+        public static void SetTracking(bool isAuthorized)
+        {
+#if UNITY_EDITOR
+            _plugin.SetTracking(isAuthorized);
+#elif UNITY_IOS
+            NeftaPlugin_SetTracking(isAuthorized);
+#elif UNITY_ANDROID
+            _plugin.Call("SetTracking", isAuthorized);
+#endif
         }
         
         public static void SetExtraParameter(string key, string value)
@@ -404,16 +446,14 @@ namespace Nefta
 #endif
         }
         
-        internal static void IOnReady(string response)
+        internal static void IOnReady(string initConfig)
         {
+            var initDto = JsonUtility.FromJson<InitConfigurationDto>(initConfig);
+            _disabledFeatures = (Feature)initDto.disabledFeatures;
             if (OnReady != null)
             {
-                string[] adUnits = null;
-                if (response != null)
-                {
-                    adUnits = response.Split(',');
-                }
-                OnReady.Invoke(adUnits);
+                var initConfiguration = new InitConfiguration(initDto.skipOptimization, initDto.providerAdUnits);
+                OnReady.Invoke(initConfiguration);
             }
         }
         
@@ -459,8 +499,12 @@ namespace Nefta
             }
         }
         
-        internal static string JavaScriptStringEncode(string value)
+        private static string JavaScriptStringEncode(string value)
         {
+            if (value == null)
+            {
+                return null;
+            }
             var len = value.Length;
             var needEncode = false;
             char c;

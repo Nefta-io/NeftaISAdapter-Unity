@@ -9,159 +9,200 @@ namespace AdDemo
 {
     public class InterstitialController : MonoBehaviour
     {
-        
 #if UNITY_IOS
-        private const string DynamicAdUnitId = "g7xalw41x4i1bj5t";
-        private const string DefaultAdUnitId = "q0z1act0tdckh4mg";
+        private const string AdUnitA = "g7xalw41x4i1bj5t";
+        private const string AdUnitB = "q0z1act0tdckh4mg";
 #else
-        private const string DynamicAdUnitId = "0u6jgm23ggqso85n";
-        private const string DefaultAdUnitId = "wrzl86if1sqfxquc";
+        private const string AdUnitA = "0u6jgm23ggqso85n";
+        private const string AdUnitB = "wrzl86if1sqfxquc";
 #endif
+
+        private enum State
+        {
+            Idle,
+            LoadingWithInsights,
+            Loading,
+            Ready
+        }
         
-        private LevelPlayInterstitialAd _dynamicInterstitial;
-        private double _dynamicAdRevenue;
-        private AdInsight _dynamicInsight;
-        private LevelPlayInterstitialAd _defaultInterstitial;
-        private double _defaultAdRevenue;
+        private class AdRequest
+        {
+            public string AdUnitId;
+            public LevelPlayInterstitialAd Interstitial;
+            public State State;
+            public AdInsight Insight;
+            public double Revenue;
+
+            public AdRequest(string adUnitId)
+            {
+                AdUnitId = adUnitId;
+            }
+
+            public void Load()
+            {
+                Interstitial.OnAdLoaded += OnAdLoaded;
+                Interstitial.OnAdLoadFailed += OnAdLoadFailed;
+                Interstitial.OnAdDisplayed += OnAdDisplayed;
+                Interstitial.OnAdDisplayFailed += OnAdDisplayFailed;
+                Interstitial.OnAdClicked += OnAdClicked;
+                Interstitial.OnAdInfoChanged += OnAdInfoChanged;
+                Interstitial.OnAdClosed += OnAdClosed;
+                Interstitial.LoadAd();
+            }
+            
+            private void OnAdLoadFailed(LevelPlayAdError error)
+            {
+                Adapter.OnExternalMediationRequestFailed(error);
+
+                Instance.SetStatus($"OnAdLoadFailed {AdUnitId}: {error}");
+
+                Interstitial = null;
+                AfterLoadFail();
+            }
+
+            public void AfterLoadFail()
+            {
+                Instance.StartCoroutine(ReTryLoad());
+
+                Instance.OnTrackLoad(false);
+            }
+        
+            private IEnumerator ReTryLoad()
+            {
+                yield return new WaitForSeconds(5f);
+                
+                State = State.Idle;
+                Instance.RetryLoading();
+            }
+            
+            private void OnAdLoaded(LevelPlayAdInfo info)
+            {
+                Adapter.OnExternalMediationRequestLoaded(info);
+                
+                Instance.SetStatus($"Loaded {AdUnitId} at: {info.Revenue}");
+
+                Insight = null;
+                Revenue = info.Revenue ?? 0;
+                State = State.Ready;
+
+                Instance.OnTrackLoad(true);
+            }
+        
+            private void OnAdClicked(LevelPlayAdInfo info)
+            {
+                Adapter.OnLevelPlayClick(info);
+            
+                Instance.SetStatus($"OnAdClicked {info}");
+            }
+            
+            private void OnAdDisplayFailed(LevelPlayAdDisplayInfoError error)
+            {
+                Instance.SetStatus($"OnAdDisplayFailed {error}");
+                
+                Instance.RetryLoading();
+            }
+
+            private void OnAdDisplayed(LevelPlayAdInfo info)
+            {
+                Instance.SetStatus($"OnAdDisplayed {info}");
+            }
+
+            private void OnAdInfoChanged(LevelPlayAdInfo info)
+            {
+                Instance.SetStatus($"OnAdInfoChanged {info}");
+            }
+        
+            private void OnAdClosed(LevelPlayAdInfo info)
+            {
+                Instance.SetStatus($"OnAdClosed {info}");
+
+                Instance.RetryLoading();
+            }
+        }
+        
+        private AdRequest _adRequestA;
+        private AdRequest _adRequestB;
+        private bool _isFirstResponseReceived;
         
         [SerializeField] private Text _title;
         [SerializeField] private Toggle _load;
         [SerializeField] private Text _loadText;
         [SerializeField] private Button _show;
         [SerializeField] private Text _status;
+
+        public static InterstitialController Instance;
         
         private void StartLoading()
         {
-            if (_dynamicInterstitial == null)
-            {
-                GetInsightsAndLoad(null); 
-            }
-            if (_defaultInterstitial == null)
-            {
-                LoadDefault();   
-            }
+            Load(_adRequestA, _adRequestB.State);
+            Load(_adRequestB, _adRequestA.State);
         }
-        
-        private void GetInsightsAndLoad(AdInsight previousInsight)
+
+        private void Load(AdRequest request, State otherState)
         {
-            Adapter.GetInsights(Insights.Interstitial, previousInsight, LoadWithInsights, 5);
-        }
-        
-        private void LoadWithInsights(Insights insights)
-        {
-            _dynamicInsight = insights._interstitial;
-            if (_dynamicInsight != null)
+            if (request.State == State.Idle)
             {
-                SetStatus($"Loading Dynamic Interstitial with: {_dynamicInsight}");
-
-                var config = new LevelPlayInterstitialAd.Config.Builder()
-                    .SetBidFloor(_dynamicInsight._floorPrice)
-                    .Build();
-                _dynamicInterstitial = new LevelPlayInterstitialAd(DynamicAdUnitId, config);
-                Load(_dynamicInterstitial);
-
-                Adapter.OnExternalMediationRequest(_dynamicInterstitial, _dynamicInsight);
-            }
-        }
-        
-        private void LoadDefault()
-        {
-            SetStatus($"Loading Default Interstitial {DefaultAdUnitId}");
-            
-            _defaultInterstitial = new LevelPlayInterstitialAd(DefaultAdUnitId);
-            Load(_defaultInterstitial);
-            
-            Adapter.OnExternalMediationRequest(_defaultInterstitial);
-        }
-        
-        private void OnAdLoadFailed(LevelPlayAdError error)
-        {
-            Adapter.OnExternalMediationRequestFailed(error);
-
-            if (_dynamicInterstitial != null && error.AdId == _dynamicInterstitial.GetAdId())
-            {
-                SetStatus($"OnAdLoadFailed Dynamic {error}");
-
-                _dynamicInterstitial = null;
-                if (_load.isOn)
+                if (otherState != State.LoadingWithInsights)
                 {
-                    StartCoroutine(ReTryLoad(true));
+                    GetInsightsAndLoad(request);
                 }
-            }
-            else
-            {
-                SetStatus($"OnAdLoadFailed Default {error}");
-
-                _defaultInterstitial = null; 
-                if (_load.isOn)
+                else if (_isFirstResponseReceived)
                 {
-                    StartCoroutine(ReTryLoad(false));
+                    LoadDefault(request);
                 }
             }
         }
         
-        private void OnAdLoaded(LevelPlayAdInfo info)
+        private void GetInsightsAndLoad(AdRequest adRequest)
         {
-            Adapter.OnExternalMediationRequestLoaded(info);
-
-            if (_dynamicInterstitial != null && info.AdId == _dynamicInterstitial.GetAdId())
-            {
-                SetStatus($"OnAdLoaded Dynamic {info}");
-
-                _dynamicAdRevenue = info.Revenue ?? 0;
-            }
-            else
-            {
-                SetStatus($"OnAdLoaded Default {info}");
-
-                _defaultAdRevenue = info.Revenue ?? 0;
-            }
+            adRequest.State = State.LoadingWithInsights;
             
-            UpdateShowButton();
-        }
-        
-        private void OnAdClicked(LevelPlayAdInfo info)
-        {
-            Adapter.OnLevelPlayClick(info);
-            
-            SetStatus($"OnAdClicked {info}");
-        }
-        
-        private IEnumerator ReTryLoad(bool isDynamic)
-        {
-            yield return new WaitForSeconds(5f);
-
-            if (_load.isOn)
+            Adapter.GetInsights(Insights.Interstitial, adRequest.Insight, (Insights insights) =>
             {
-                if (isDynamic)
+                SetStatus($"LoadWithInsights: {insights}");
+                if (insights._interstitial != null)
                 {
-                    if (_dynamicInterstitial == null)
-                    {
-                        GetInsightsAndLoad(_dynamicInsight);     
-                    }
+                    adRequest.Insight = insights._interstitial;
+                    var config = new LevelPlayInterstitialAd.Config.Builder()
+                        .SetBidFloor(adRequest.Insight._floorPrice)
+                        .Build();
+                    adRequest.Interstitial = new LevelPlayInterstitialAd(adRequest.AdUnitId, config);
+                    
+                    Adapter.OnExternalMediationRequest(adRequest.Interstitial, adRequest.Insight);
+                    
+                    adRequest.Load();
                 }
                 else
                 {
-                    if (_defaultInterstitial == null)
-                    {
-                        LoadDefault();     
-                    }
+                    adRequest.AfterLoadFail();
                 }
-            }
+            }, 5);
+        }
+        
+        private void LoadDefault(AdRequest adRequest)
+        {
+            adRequest.State = State.Loading;
+            
+            SetStatus($"Loading {adRequest.AdUnitId} as Default");
+
+            adRequest.Interstitial = new LevelPlayInterstitialAd(adRequest.AdUnitId);
+            
+            Adapter.OnExternalMediationRequest(adRequest.Interstitial);
+            
+            adRequest.Load();
         }
 
-        public void Init()
+        private void Awake()
         {
+            Instance = this;
+
+            _adRequestA = new AdRequest(AdUnitA);
+            _adRequestB = new AdRequest(AdUnitB);
+            
             _load.onValueChanged.AddListener(OnLoadChanged);
             _show.onClick.AddListener(OnShowClick);
             
-            _load.interactable = false;
             _show.interactable = false;
-        }
-        
-        public void OnReady()
-        {
-            _load.interactable = true;
         }
 
         private void OnLoadChanged(bool isOn)
@@ -176,89 +217,56 @@ namespace AdDemo
         
         private void OnShowClick()
         {
-            bool isShown = false;
-            if (_dynamicAdRevenue >= 0)
+            var isShown = false;
+            if (_adRequestA.State == State.Ready)
             {
-                if (_defaultAdRevenue > _dynamicAdRevenue)
+                if (_adRequestB.State == State.Ready && _adRequestB.Revenue > _adRequestA.Revenue)
                 {
-                    isShown = TryShowDefault();
+                    isShown = TryShow(_adRequestB);
                 }
                 if (!isShown)
                 {
-                    isShown = TryShowDynamic();
+                    isShown = TryShow(_adRequestA);
                 }
             }
-            if (!isShown && _defaultAdRevenue >= 0)
+            if (!isShown && _adRequestB.State == State.Ready)
             {
-                TryShowDefault();
+                TryShow(_adRequestB);
             }
             UpdateShowButton();
         }
         
-        private bool TryShowDynamic()
+        private bool TryShow(AdRequest request)
         {
-            var isShown = false;
-            if (_dynamicInterstitial.IsAdReady())
+            request.State = State.Idle;
+            request.Revenue = -1;
+
+            if (request.Interstitial.IsAdReady())
             {
-                SetStatus("Showing Dynamic Interstitial");
-                _dynamicInterstitial.ShowAd();
-                isShown = true;
+                request.Interstitial.ShowAd();
+                return true;
             }
-            _dynamicAdRevenue = -1;
-            _dynamicInterstitial = null;
-            return isShown;
+            RetryLoading();
+            return false;
         }
 
-        private bool TryShowDefault()
+        public void RetryLoading()
         {
-            var isShown = false;
-            if (_defaultInterstitial.IsAdReady())
-            {
-                SetStatus("Showing Default Interstitial");
-                _defaultInterstitial.ShowAd();
-                isShown = true;
-            }
-            _defaultAdRevenue = -1;
-            _defaultInterstitial = null;
-            return isShown;
-        }
-
-        private void Load(LevelPlayInterstitialAd interstitial)
-        {
-            interstitial.OnAdLoaded += OnAdLoaded;
-            interstitial.OnAdLoadFailed += OnAdLoadFailed;
-            interstitial.OnAdDisplayed += OnAdDisplayed;
-            interstitial.OnAdDisplayFailed += OnAdDisplayFailed;
-            interstitial.OnAdClicked += OnAdClicked;
-            interstitial.OnAdInfoChanged += OnAdInfoChanged;
-            interstitial.OnAdClosed += OnAdClosed;
-            interstitial.LoadAd();
-        }
-        
-        private void OnAdDisplayFailed(LevelPlayAdDisplayInfoError error)
-        {
-            SetStatus($"OnAdDisplayFailed {error}");
-        }
-
-        private void OnAdDisplayed(LevelPlayAdInfo info)
-        {
-            SetStatus($"OnAdDisplayed {info}");
-        }
-
-        private void OnAdInfoChanged(LevelPlayAdInfo info)
-        {
-            SetStatus($"OnAdInfoChanged {info}");
-        }
-        
-        private void OnAdClosed(LevelPlayAdInfo info)
-        {
-            SetStatus($"OnAdClosed {info}");
-            
-            // start new cycle
             if (_load.isOn)
             {
                 StartLoading();
             }
+        }
+
+        public void OnTrackLoad(bool success)
+        {
+            if (success)
+            {
+                UpdateShowButton();
+            }
+
+            _isFirstResponseReceived = true;
+            RetryLoading();
         }
 
         private void SetStatus(string status)
@@ -269,7 +277,7 @@ namespace AdDemo
         
         private void UpdateShowButton()
         {
-            _show.interactable = _dynamicAdRevenue >= 0 || _defaultAdRevenue >= 0;
+            _show.interactable = _adRequestA.State == State.Ready || _adRequestB.State == State.Ready;
         }
 
         private void AddDemoGameEventExample()

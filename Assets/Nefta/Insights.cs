@@ -39,7 +39,9 @@ namespace Nefta
     
     public class AdInsight
     {
+        public int _requestId;
         public int _adOpportunityId;
+        public int _auctionId;
         public Adapter.AdType _type;
         public double _floorPrice;
         public string _adUnit;
@@ -47,7 +49,9 @@ namespace Nefta
         public AdInsight(Adapter.AdType type, AdConfigurationDto dto)
         {
             _type = type;
+            _requestId = dto.request_id;
             _adOpportunityId = dto.ad_opportunity_id;
+            _auctionId = dto.auction_id;
             _floorPrice = dto.floor_price;
             _adUnit = dto.ad_unit;
         }
