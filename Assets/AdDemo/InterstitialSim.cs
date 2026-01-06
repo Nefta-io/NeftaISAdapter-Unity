@@ -33,7 +33,6 @@ namespace AdDemo
             public State State;
             public AdInsight Insight;
             public double Revenue;
-            public int ConsecutiveAdFails;
 
             public AdRequest(string adUnitId)
             {
@@ -284,15 +283,15 @@ namespace AdDemo
             UpdateShowButton();
         }
         
-        private bool TryShow(AdRequest adRequest)
+        private bool TryShow(AdRequest request)
         {
-            adRequest.State = State.Idle;
-            adRequest.Revenue = 0;
+            request.State = State.Idle;
+            request.Revenue = 0;
             
-            if (adRequest.Interstitial.IsAdReady())
+            if (request.Interstitial.IsAdReady())
             {
-                SetStatus($"Showing {adRequest.AdUnitId}");
-                adRequest.Interstitial.ShowAd(adRequest.AdUnitId);
+                SetStatus($"Showing {request.AdUnitId}");
+                request.Interstitial.ShowAd(request.AdUnitId);
                 return true;
             }
             RetryLoading();

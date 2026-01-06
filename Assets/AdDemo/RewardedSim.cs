@@ -13,7 +13,6 @@ namespace AdDemo
         private const string AdUnitA = "Track A";
         private const string AdUnitB = "Track B";
         
-        private const int TimeoutInSeconds = 5;
         private readonly Color DefaultColor = new Color(0.6509804f, 0.1490196f, 0.7490196f, 1f);
         private readonly Color FillColor = Color.green;
         private readonly Color NoFillColor = Color.red;
@@ -33,7 +32,6 @@ namespace AdDemo
             public State State;
             public AdInsight Insight;
             public double Revenue;
-            public int ConsecutiveAdFails;
 
             public AdRequest(string adUnitId)
             {
@@ -187,7 +185,8 @@ namespace AdDemo
         {
             adRequest.State = State.LoadingWithInsights;
             
-            Adapter.GetInsights(Insights.Interstitial, adRequest.Insight, (Insights insights) => {
+            Adapter.GetInsights(Insights.Interstitial, adRequest.Insight, (Insights insights) =>
+            {
                 var insight = insights._interstitial;
                 SetStatus($"Load with Insights: {insight}");
                 if (insight != null)
@@ -206,7 +205,7 @@ namespace AdDemo
                 {
                     adRequest.AfterLoadFail();
                 }
-            }, TimeoutInSeconds);
+            }, 5);
         }
         
         private void LoadDefault(AdRequest adRequest)
@@ -293,7 +292,7 @@ namespace AdDemo
         private bool TryShow(AdRequest adRequest)
         {
             adRequest.State = State.Idle;
-            adRequest.Revenue = 0;
+            adRequest.Revenue = -1;
             
             if (adRequest.Rewarded.IsAdReady())
             {
