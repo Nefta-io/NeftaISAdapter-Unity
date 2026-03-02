@@ -277,7 +277,11 @@ namespace Nefta
         /// <param name="adInfo">Loaded LevelPlay Ad instance data</param>
         public static void OnExternalMediationRequestLoaded(Unity.Services.LevelPlay.LevelPlayAdInfo adInfo)
         {
-            OnExternalMediationResponse(adInfo.AdId, adInfo.AuctionId, adInfo.Revenue ?? 0, adInfo.Precision, 1, null, null);
+            var sb = new StringBuilder();
+            sb.Append("{\"network_name\":\"");
+            sb.Append(JavaScriptStringEncode(adInfo.AdNetwork));
+            sb.Append("\"}");
+            OnExternalMediationResponse(adInfo.AdId, adInfo.AuctionId, adInfo.Revenue ?? 0, adInfo.Precision, 1, null, null, sb.ToString());
         }
         
         /// <summary>
@@ -294,17 +298,17 @@ namespace Nefta
             {
                 status = 2;
             }
-            OnExternalMediationResponse(error.AdId, null, -1, null, status, error.ErrorCode.ToString(CultureInfo.InvariantCulture), null);
+            OnExternalMediationResponse(error.AdId, null, -1, null, status, error.ErrorCode.ToString(CultureInfo.InvariantCulture), null, null);
         }
         
-        private static void OnExternalMediationResponse(string id, string id2, double revenue, string precision, int status, string providerStatus, string networkStatus)
+        private static void OnExternalMediationResponse(string id, string id2, double revenue, string precision, int status, string providerStatus, string networkStatus, string data)
         {
 #if UNITY_EDITOR
-            _plugin.OnExternalMediationResponseAsString(_mediationProvider, id, id2, revenue, precision, status, providerStatus, networkStatus, null);
+            _plugin.OnExternalMediationResponseAsString(_mediationProvider, id, id2, revenue, precision, status, providerStatus, networkStatus, data);
 #elif UNITY_IOS
-            NeftaPlugin_OnExternalMediationResponseAsString(_mediationProvider, id, id2, revenue, precision, status, providerStatus, networkStatus, null);
+            NeftaPlugin_OnExternalMediationResponseAsString(_mediationProvider, id, id2, revenue, precision, status, providerStatus, networkStatus, data);
 #elif UNITY_ANDROID
-            _plugin.CallStatic("OnExternalMediationResponseAsString", _mediationProvider, id, id2, revenue, precision, status, providerStatus, networkStatus, null);
+            _plugin.CallStatic("OnExternalMediationResponseAsString", _mediationProvider, id, id2, revenue, precision, status, providerStatus, networkStatus, data);
 #endif
         }
 

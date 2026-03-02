@@ -1,6 +1,7 @@
 using System;
-using System.Collections;
+using System.Globalization;
 using System.Reflection;
+using System.Threading.Tasks;
 using Nefta;
 using Unity.Services.LevelPlay;
 using UnityEngine;
@@ -23,10 +24,11 @@ namespace AdDemo
             Idle,
             LoadingWithInsights,
             Loading,
-            Ready
+            Ready,
+            Shown
         }
         
-        private class AdRequest
+        private class Track
         {
             public readonly string AdUnitId;
             public SLevelPlayInterstitialAd Interstitial;
@@ -34,7 +36,7 @@ namespace AdDemo
             public AdInsight Insight;
             public double Revenue;
 
-            public AdRequest(string adUnitId)
+            public Track(string adUnitId)
             {
                 AdUnitId = adUnitId;
             }
@@ -58,22 +60,27 @@ namespace AdDemo
                 Instance.SetStatus($"OnAdLoadFailed {AdUnitId}: {error}");
 
                 Interstitial = null;
-                AfterLoadFail();
+                RestartAfterFailedLoad();
             }
 
-            public void AfterLoadFail()
+            public void RestartAfterFailedLoad()
             {
-                Instance.StartCoroutine(ReTryLoad());
+                _ = RetryLoadWithDelay();
 
                 Instance.OnTrackLoad(false);
             }
         
-            private IEnumerator ReTryLoad()
+            private async Task RetryLoadWithDelay()
             {
-                yield return new WaitForSeconds(5f);
-                
+                await Task.Delay(5000);
+#if UNITY_EDITOR
+                if (!Application.isPlaying)
+                {
+                    return;
+                }
+#endif
                 State = State.Idle;
-                Instance.RetryLoading();
+                Instance.RetryLoadTracks();
             }
             
             private void OnAdLoaded(LevelPlayAdInfo info)
@@ -100,7 +107,8 @@ namespace AdDemo
             {
                 Instance.SetStatus($"OnAdDisplayFailed {error}");
                 
-                Instance.RetryLoading();
+                State = State.Idle;
+                Instance.RetryLoadTracks();
             }
 
             private void OnAdDisplayed(LevelPlayAdInfo info)
@@ -117,12 +125,13 @@ namespace AdDemo
             {
                 Instance.SetStatus($"OnAdClosed {info}");
 
-                Instance.RetryLoading();
+                State = State.Idle;
+                Instance.RetryLoadTracks();
             }
         }
         
-        private AdRequest _adRequestA;
-        private AdRequest _adRequestB;
+        private Track _trackA;
+        private Track _trackB;
         private bool _isFirstResponseReceived;
         
         [Header("Controls")]
@@ -155,84 +164,87 @@ namespace AdDemo
         
         public static InterstitialSim Instance;
         
-        private void StartLoading()
+        private void LoadTracks()
         {
-            Load(_adRequestA, _adRequestB.State);
-            Load(_adRequestB, _adRequestA.State);
+            LoadTrack(_trackA, _trackB.State);
+            LoadTrack(_trackB, _trackA.State);
         }
 
-        private void Load(AdRequest request, State otherState)
+        private void LoadTrack(Track track, State otherState)
         {
-            if (request.State == State.Idle)
+            if (track.State == State.Idle)
             {
-                if (otherState != State.LoadingWithInsights)
+                if (otherState == State.LoadingWithInsights || otherState == State.Shown)
                 {
-                    GetInsightsAndLoad(request);
+                    if (_isFirstResponseReceived)
+                    {
+                        LoadDefault(track);
+                    }
                 }
-                else if (_isFirstResponseReceived)
+                else
                 {
-                    LoadDefault(request);
+                    GetInsightsAndLoad(track); 
                 }
             }
         }
         
-        private void GetInsightsAndLoad(AdRequest adRequest)
+        private void GetInsightsAndLoad(Track track)
         {
-            adRequest.State = State.LoadingWithInsights;
+            track.State = State.LoadingWithInsights;
             
-            Adapter.GetInsights(Insights.Interstitial, adRequest.Insight, (Insights insights) => {
+            Adapter.GetInsights(Insights.Interstitial, track.Insight, (Insights insights) => {
                 var insight = insights._interstitial;
                 SetStatus($"Load with Insights: {insight}");
                 if (insight != null)
                 {
-                    adRequest.Insight = insights._interstitial;
+                    track.Insight = insights._interstitial;
                     var config = new LevelPlayInterstitialAd.Config.Builder()
-                        .SetBidFloor(adRequest.Insight._floorPrice)
+                        .SetBidFloor(track.Insight._floorPrice)
                         .Build();
-                    adRequest.Interstitial = new SLevelPlayInterstitialAd(adRequest.AdUnitId, config);
+                    track.Interstitial = new SLevelPlayInterstitialAd(track.AdUnitId, config);
 
-                    Adapter.OnExternalMediationRequest(adRequest.Interstitial, adRequest.Insight);
+                    Adapter.OnExternalMediationRequest(track.Interstitial, track.Insight);
 
-                    adRequest.Load();
+                    track.Load();
                 }
                 else
                 {
-                    adRequest.AfterLoadFail();
+                    track.RestartAfterFailedLoad();
                 }
             }, TimeoutInSeconds);
         }
         
-        private void LoadDefault(AdRequest adRequest)
+        private void LoadDefault(Track track)
         {
-            adRequest.State = State.Loading;
+            track.State = State.Loading;
             
-            SetStatus($"Loading {adRequest.AdUnitId} as Default");
+            SetStatus($"Loading {track.AdUnitId} as Default");
 
-            adRequest.Interstitial = new SLevelPlayInterstitialAd(adRequest.AdUnitId);
+            track.Interstitial = new SLevelPlayInterstitialAd(track.AdUnitId);
             
-            Adapter.OnExternalMediationRequest(adRequest.Interstitial);
+            Adapter.OnExternalMediationRequest(track.Interstitial);
             
-            adRequest.Load();
+            track.Load();
         }
         
         private void Awake()
         {
             Instance = this;
             
-            _adRequestA = new AdRequest(AdUnitA);
-            _adRequestB = new AdRequest(AdUnitB);
+            _trackA = new Track(AdUnitA);
+            _trackB = new Track(AdUnitB);
             
             ToggleTrackA(false);
-            _aFill2.onClick.AddListener(() => { SimOnAdLoadedEvent(_adRequestA, true); });
-            _aFill1.onClick.AddListener(() => { SimOnAdLoadedEvent(_adRequestA, false); });
-            _aNoFill.onClick.AddListener(() => { SimOnAdFailedEvent(_adRequestA, 2); });
-            _aOther.onClick.AddListener(() => { SimOnAdFailedEvent(_adRequestA, 0); });
+            _aFill2.onClick.AddListener(() => { SimOnAdLoadedEvent(_trackA, true); });
+            _aFill1.onClick.AddListener(() => { SimOnAdLoadedEvent(_trackA, false); });
+            _aNoFill.onClick.AddListener(() => { SimOnAdFailedEvent(_trackA, 2); });
+            _aOther.onClick.AddListener(() => { SimOnAdFailedEvent(_trackA, 0); });
             
             ToggleTrackB(false);
-            _bFill2.onClick.AddListener(() => { SimOnAdLoadedEvent(_adRequestB, true); });
-            _bFill1.onClick.AddListener(() => { SimOnAdLoadedEvent(_adRequestB, false); });
-            _bNoFill.onClick.AddListener(() => { SimOnAdFailedEvent(_adRequestB, 2); });
-            _bOther.onClick.AddListener(() => { SimOnAdFailedEvent(_adRequestB, 0); });
+            _bFill2.onClick.AddListener(() => { SimOnAdLoadedEvent(_trackB, true); });
+            _bFill1.onClick.AddListener(() => { SimOnAdLoadedEvent(_trackB, false); });
+            _bNoFill.onClick.AddListener(() => { SimOnAdFailedEvent(_trackB, 2); });
+            _bOther.onClick.AddListener(() => { SimOnAdFailedEvent(_trackB, 0); });
             
             
             _load.onValueChanged.AddListener(OnLoadChanged);
@@ -245,18 +257,18 @@ namespace AdDemo
         {
             if (isOn)
             {
-                StartLoading();   
+                LoadTracks();   
             }
             else
             {
-                if (_adRequestA.State != State.Ready)
+                if (_trackA.State != State.Ready)
                 {
-                    _adRequestA.State = State.Idle;
+                    _trackA.State = State.Idle;
                 }
 
-                if (_adRequestB.State != State.Ready)
+                if (_trackB.State != State.Ready)
                 {
-                    _adRequestB.State = State.Idle;
+                    _trackB.State = State.Idle;
                 }
             }
         }
@@ -264,26 +276,26 @@ namespace AdDemo
         private void OnShowClick()
         {
             var isShown = false;
-            if (_adRequestA.State == State.Ready)
+            if (_trackA.State == State.Ready)
             {
-                if (_adRequestB.State == State.Ready && _adRequestB.Revenue > _adRequestA.Revenue)
+                if (_trackB.State == State.Ready && _trackB.Revenue > _trackA.Revenue)
                 {
-                    isShown = TryShow(_adRequestB);
+                    isShown = TryShow(_trackB);
                 }
                 if (!isShown)
                 {
-                    isShown = TryShow(_adRequestA);
+                    isShown = TryShow(_trackA);
                 }
             }
-            if (!isShown && _adRequestB.State == State.Ready)
+            if (!isShown && _trackB.State == State.Ready)
             {
-                TryShow(_adRequestB);
+                TryShow(_trackB);
             }
             
             UpdateShowButton();
         }
         
-        private bool TryShow(AdRequest request)
+        private bool TryShow(Track request)
         {
             request.State = State.Idle;
             request.Revenue = 0;
@@ -291,18 +303,20 @@ namespace AdDemo
             if (request.Interstitial.IsAdReady())
             {
                 SetStatus($"Showing {request.AdUnitId}");
+                request.State = State.Shown;
                 request.Interstitial.ShowAd(request.AdUnitId);
                 return true;
             }
-            RetryLoading();
+            request.State = State.Idle;
+            RetryLoadTracks();
             return false;
         }
         
-        public void RetryLoading()
+        public void RetryLoadTracks()
         {
             if (_load.isOn)
             {
-                StartLoading();
+                LoadTracks();
             }
         }
 
@@ -314,7 +328,7 @@ namespace AdDemo
             }
 
             _isFirstResponseReceived = true;
-            RetryLoading();
+            RetryLoadTracks();
         }
         
         private void SetStatus(string status)
@@ -325,7 +339,7 @@ namespace AdDemo
         
         private void UpdateShowButton()
         {
-            _show.interactable = _adRequestA.State == State.Ready || _adRequestB.State == State.Ready;
+            _show.interactable = _trackA.State == State.Ready || _trackB.State == State.Ready;
         }
 
         public class SLevelPlayInterstitialAd : LevelPlayInterstitialAd
@@ -363,14 +377,14 @@ namespace AdDemo
                 {
                     if (AdUnitId == AdUnitA)
                     {
-                        var floor = Instance._adRequestA.Insight?._floorPrice ?? -1;
+                        var floor = Instance._trackA.Insight?._floorPrice ?? -1;
                     
                         Instance.ToggleTrackA(true);
                         Instance._aStatus.text = $"{AdUnitId} loading " + (floor >= 0 ? "as Optimized": "as Default");
                     }
                     else
                     {
-                        var floor = Instance._adRequestB.Insight?._floorPrice ?? -1;
+                        var floor = Instance._trackB.Insight?._floorPrice ?? -1;
                     
                         Instance.ToggleTrackB(true);
                         Instance._bStatus.text = $"{AdUnitId} loading " + (floor >= 0 ? "as Optimized": "as Default");
@@ -379,6 +393,9 @@ namespace AdDemo
 
                 public void ShowAd(string placementName)
                 {
+                    var adInfo = AdInfo;
+                    AdInfo = null;
+                    
                     Type type = typeof(LevelPlayImpressionData);
                     ConstructorInfo ctor = type.GetConstructor(
                         BindingFlags.NonPublic | BindingFlags.Instance,
@@ -387,16 +404,27 @@ namespace AdDemo
                         null);
                     var impression = (LevelPlayImpressionData)ctor.Invoke(new object[] { _json });
                     Adapter.OnLevelPlayImpression(impression);
-
-                    var simulatorAdPrefab = Resources.Load<SimulatorAd>("SimulatorAd");
-                    var simAd = Instantiate(simulatorAdPrefab, Instance._rootRect);
-                    simAd.Init("Interstitial",
-                        () => { OnAdDisplayed?.Invoke(AdInfo); },
-                        () => { OnAdClicked?.Invoke(AdInfo); },
-                        null,
+                    
+                    NativeAd.ShowAd("Interstitial",
+                        () =>
+                        {
+                            if (AdUnitId == AdUnitA)
+                            {
+                                Instance.ToggleTrackA(true);
+                                Instance.ToggleTrackA(false);
+                            }
+                            else
+                            {
+                                Instance.ToggleTrackB(true);
+                                Instance.ToggleTrackB(false);
+                            }
+                            
+                            OnAdDisplayed?.Invoke(adInfo);
+                        },
+                        () => { OnAdClicked?.Invoke(adInfo); },
+                        () => { },
                         () => {
-                            OnAdClosed?.Invoke(AdInfo);
-                            AdInfo = null;
+                            OnAdClosed?.Invoke(adInfo);
                         });
                 
                     if (AdUnitId == AdUnitA)
@@ -416,9 +444,9 @@ namespace AdDemo
 
                 public void TriggerAdLoad(double revenue)
                 {
-                    _json = $"{{\"adId\":\"{AdId}\",\"adUnitId\":\"{AdUnitId}\",\"auctionId\":\"{_auctionId}\",\"revenue\":{revenue},\"precision\":\"BID\",\"adNetwork\":\"simulator network\",\"adFormat\":\"interstitial\",\"creativeId\":\"simulator creative\"}}";
-                    Type type = typeof(com.unity3d.mediation.LevelPlayAdInfo);
-                    ConstructorInfo ctor = type.GetConstructor(
+                    _json = $"{{\"adId\":\"{AdId}\",\"adUnitId\":\"{AdUnitId}\",\"auctionId\":\"{_auctionId}\",\"revenue\":{revenue.ToString(CultureInfo.InvariantCulture)},\"precision\":\"BID\",\"adNetwork\":\"simulator network\",\"adFormat\":\"interstitial\",\"creativeId\":\"simulator creative\"}}";
+                    var type = typeof(com.unity3d.mediation.LevelPlayAdInfo);
+                    var ctor = type.GetConstructor(
                         BindingFlags.NonPublic | BindingFlags.Instance,
                         null,
                         new[] { typeof(string) },
@@ -430,8 +458,8 @@ namespace AdDemo
                 
                 public void TriggerAdLoadFailed(int status)
                 {
-                    Type type = typeof(com.unity3d.mediation.LevelPlayAdError);
-                    ConstructorInfo ctor = type.GetConstructor(
+                    var type = typeof(com.unity3d.mediation.LevelPlayAdError);
+                    var ctor = type.GetConstructor(
                         BindingFlags.NonPublic | BindingFlags.Instance,
                         null,
                         new[] { typeof(string) },
@@ -467,13 +495,13 @@ namespace AdDemo
             }
         }
         
-        private void SimOnAdLoadedEvent(AdRequest request, bool high)
+        private void SimOnAdLoadedEvent(Track request, bool high)
         {
             var revenue = high ? 0.002 : 0.001;
             if (request.Interstitial._internal.AdInfo != null)
             {
                 request.Interstitial._internal.AdInfo = null;
-                if (request == _adRequestA)
+                if (request == _trackA)
                 {
                     if (high)
                     {
@@ -486,7 +514,7 @@ namespace AdDemo
                         _aFill1.interactable = false;
                     }
                 }
-                if (request == _adRequestB)
+                if (request == _trackB)
                 {
                     if (high)
                     {
@@ -502,7 +530,7 @@ namespace AdDemo
                 return;
             }
             
-            if (request == _adRequestA)
+            if (request == _trackA)
             {
                 ToggleTrackA(false);
                 if (high)
@@ -566,9 +594,9 @@ namespace AdDemo
             }
         }
         
-        private void SimOnAdFailedEvent(AdRequest adRequest, int status)
+        private void SimOnAdFailedEvent(Track track, int status)
         {
-            if (adRequest == _adRequestA)
+            if (track == _trackA)
             {
                 if (status == 2)
                 {
@@ -578,7 +606,7 @@ namespace AdDemo
                 {
                     _aOtherRenderer.color = NoFillColor;
                 }
-                _aStatus.text = $"{adRequest.AdUnitId} failed";
+                _aStatus.text = $"{track.AdUnitId} failed";
                 ToggleTrackA(false);
             }
             else
@@ -591,11 +619,11 @@ namespace AdDemo
                 {
                     _bOtherRenderer.color = NoFillColor;
                 }
-                _bStatus.text = $"{adRequest.AdUnitId} failed";
+                _bStatus.text = $"{track.AdUnitId} failed";
                 ToggleTrackB(false);
             }
             
-            adRequest.Interstitial._internal.TriggerAdLoadFailed(status); 
+            track.Interstitial._internal.TriggerAdLoadFailed(status); 
         }
     }
 }

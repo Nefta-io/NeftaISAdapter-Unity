@@ -1,13 +1,12 @@
-using System.Collections;
+using System.Threading.Tasks;
 using Nefta;
-using Nefta.Events;
 using Unity.Services.LevelPlay;
 using UnityEngine;
 using UnityEngine.UI;
 
 namespace AdDemo
 {
-    public class InterstitialController : MonoBehaviour
+    public class Interstitial : MonoBehaviour
     {
 #if UNITY_IOS
         private const string AdUnitA = "g7xalw41x4i1bj5t";
@@ -22,18 +21,19 @@ namespace AdDemo
             Idle,
             LoadingWithInsights,
             Loading,
-            Ready
+            Ready,
+            Shown
         }
         
-        private class AdRequest
+        private class Track
         {
-            public string AdUnitId;
+            public readonly string AdUnitId;
             public LevelPlayInterstitialAd Interstitial;
             public State State;
             public AdInsight Insight;
             public double Revenue;
 
-            public AdRequest(string adUnitId)
+            public Track(string adUnitId)
             {
                 AdUnitId = adUnitId;
             }
@@ -57,22 +57,27 @@ namespace AdDemo
                 Instance.SetStatus($"OnAdLoadFailed {AdUnitId}: {error}");
 
                 Interstitial = null;
-                AfterLoadFail();
+                RestartAfterFailedLoad();
             }
 
-            public void AfterLoadFail()
+            public void RestartAfterFailedLoad()
             {
-                Instance.StartCoroutine(ReTryLoad());
+                _ = RetryLoadWithDelay();
 
                 Instance.OnTrackLoad(false);
             }
         
-            private IEnumerator ReTryLoad()
+            private async Task RetryLoadWithDelay()
             {
-                yield return new WaitForSeconds(5f);
-                
+                await Task.Delay(5000);
+#if UNITY_EDITOR
+                if (!Application.isPlaying)
+                {
+                    return;
+                }
+#endif
                 State = State.Idle;
-                Instance.RetryLoading();
+                Instance.RetryLoadTracks();
             }
             
             private void OnAdLoaded(LevelPlayAdInfo info)
@@ -99,7 +104,8 @@ namespace AdDemo
             {
                 Instance.SetStatus($"OnAdDisplayFailed {error}");
                 
-                Instance.RetryLoading();
+                State = State.Idle;
+                Instance.RetryLoadTracks();
             }
 
             private void OnAdDisplayed(LevelPlayAdInfo info)
@@ -116,12 +122,13 @@ namespace AdDemo
             {
                 Instance.SetStatus($"OnAdClosed {info}");
 
-                Instance.RetryLoading();
+                State = State.Idle;
+                Instance.RetryLoadTracks();
             }
         }
         
-        private AdRequest _adRequestA;
-        private AdRequest _adRequestB;
+        private Track _trackA;
+        private Track _trackB;
         private bool _isFirstResponseReceived;
         
         [SerializeField] private Text _title;
@@ -130,74 +137,77 @@ namespace AdDemo
         [SerializeField] private Button _show;
         [SerializeField] private Text _status;
 
-        public static InterstitialController Instance;
+        public static Interstitial Instance;
         
-        private void StartLoading()
+        private void LoadTracks()
         {
-            Load(_adRequestA, _adRequestB.State);
-            Load(_adRequestB, _adRequestA.State);
+            LoadTrack(_trackA, _trackB.State);
+            LoadTrack(_trackB, _trackA.State);
         }
 
-        private void Load(AdRequest request, State otherState)
+        private void LoadTrack(Track track, State otherState)
         {
-            if (request.State == State.Idle)
+            if (track.State == State.Idle)
             {
-                if (otherState != State.LoadingWithInsights)
+                if (otherState == State.LoadingWithInsights || otherState == State.Shown)
                 {
-                    GetInsightsAndLoad(request);
+                    if (_isFirstResponseReceived)
+                    {
+                        LoadDefault(track);
+                    }
                 }
-                else if (_isFirstResponseReceived)
+                else
                 {
-                    LoadDefault(request);
+                    GetInsightsAndLoad(track); 
                 }
             }
         }
         
-        private void GetInsightsAndLoad(AdRequest adRequest)
+        private void GetInsightsAndLoad(Track track)
         {
-            adRequest.State = State.LoadingWithInsights;
+            track.State = State.LoadingWithInsights;
             
-            Adapter.GetInsights(Insights.Interstitial, adRequest.Insight, (Insights insights) =>
+            Adapter.GetInsights(Insights.Interstitial, track.Insight, (Insights insights) =>
             {
                 SetStatus($"LoadWithInsights: {insights}");
                 if (insights._interstitial != null)
                 {
-                    adRequest.Insight = insights._interstitial;
+                    track.Insight = insights._interstitial;
                     var config = new LevelPlayInterstitialAd.Config.Builder()
-                        .SetBidFloor(adRequest.Insight._floorPrice)
+                        .SetBidFloor(track.Insight._floorPrice)
                         .Build();
-                    adRequest.Interstitial = new LevelPlayInterstitialAd(adRequest.AdUnitId, config);
+                    track.Interstitial = new LevelPlayInterstitialAd(track.AdUnitId, config);
                     
-                    Adapter.OnExternalMediationRequest(adRequest.Interstitial, adRequest.Insight);
+                    Adapter.OnExternalMediationRequest(track.Interstitial, track.Insight);
                     
-                    adRequest.Load();
+                    track.Load();
                 }
                 else
                 {
-                    adRequest.AfterLoadFail();
+                    track.RestartAfterFailedLoad();
                 }
             }, 5);
         }
         
-        private void LoadDefault(AdRequest adRequest)
+        private void LoadDefault(Track track)
         {
-            adRequest.State = State.Loading;
+            track.State = State.Loading;
             
-            SetStatus($"Loading {adRequest.AdUnitId} as Default");
+            SetStatus($"Loading {track.AdUnitId} as Default");
 
-            adRequest.Interstitial = new LevelPlayInterstitialAd(adRequest.AdUnitId);
+            track.Interstitial = new LevelPlayInterstitialAd(track.AdUnitId);
             
-            Adapter.OnExternalMediationRequest(adRequest.Interstitial);
+            Adapter.OnExternalMediationRequest(track.Interstitial);
             
-            adRequest.Load();
+            track.Load();
         }
 
         private void Awake()
         {
             Instance = this;
 
-            _adRequestA = new AdRequest(AdUnitA);
-            _adRequestB = new AdRequest(AdUnitB);
+            _trackA = new Track(AdUnitA);
+            _trackB = new Track(AdUnitB);
             
             _load.onValueChanged.AddListener(OnLoadChanged);
             _show.onClick.AddListener(OnShowClick);
@@ -209,52 +219,50 @@ namespace AdDemo
         {
             if (isOn)
             {
-                StartLoading();   
+                LoadTracks();   
             }
-            
-            AddDemoGameEventExample();
         }
         
         private void OnShowClick()
         {
             var isShown = false;
-            if (_adRequestA.State == State.Ready)
+            if (_trackA.State == State.Ready)
             {
-                if (_adRequestB.State == State.Ready && _adRequestB.Revenue > _adRequestA.Revenue)
+                if (_trackB.State == State.Ready && _trackB.Revenue > _trackA.Revenue)
                 {
-                    isShown = TryShow(_adRequestB);
+                    isShown = TryShow(_trackB);
                 }
                 if (!isShown)
                 {
-                    isShown = TryShow(_adRequestA);
+                    isShown = TryShow(_trackA);
                 }
             }
-            if (!isShown && _adRequestB.State == State.Ready)
+            if (!isShown && _trackB.State == State.Ready)
             {
-                TryShow(_adRequestB);
+                TryShow(_trackB);
             }
             UpdateShowButton();
         }
         
-        private bool TryShow(AdRequest request)
+        private bool TryShow(Track request)
         {
-            request.State = State.Idle;
             request.Revenue = -1;
-
             if (request.Interstitial.IsAdReady())
             {
+                request.State = State.Shown;
                 request.Interstitial.ShowAd();
                 return true;
             }
-            RetryLoading();
+            request.State = State.Idle;
+            RetryLoadTracks();
             return false;
         }
 
-        public void RetryLoading()
+        public void RetryLoadTracks()
         {
             if (_load.isOn)
             {
-                StartLoading();
+                LoadTracks();
             }
         }
 
@@ -266,7 +274,7 @@ namespace AdDemo
             }
 
             _isFirstResponseReceived = true;
-            RetryLoading();
+            RetryLoadTracks();
         }
 
         private void SetStatus(string status)
@@ -277,15 +285,7 @@ namespace AdDemo
         
         private void UpdateShowButton()
         {
-            _show.interactable = _adRequestA.State == State.Ready || _adRequestB.State == State.Ready;
-        }
-
-        private void AddDemoGameEventExample()
-        {
-            var category = (ResourceCategory) Random.Range(0, 9);
-            var method = (ReceiveMethod)Random.Range(0, 8);
-            var value = Random.Range(0, 101);
-            Adapter.Record(new ReceiveEvent(category) { _method = method, _name = $"receive_{category} {method} {value}", _value = value });
+            _show.interactable = _trackA.State == State.Ready || _trackB.State == State.Ready;
         }
     }
 }
