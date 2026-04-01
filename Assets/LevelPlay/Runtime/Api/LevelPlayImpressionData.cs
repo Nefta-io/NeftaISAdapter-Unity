@@ -128,8 +128,9 @@ namespace Unity.Services.LevelPlay
 
         private double? GetValueAsDouble(string key)
         {
+            CultureInfo invCulture = CultureInfo.InvariantCulture;
             if (InternalDictionary.TryGetValue(key, out var value) && value != null &&
-                double.TryParse(value.ToString(), NumberStyles.Any, CultureInfo.InvariantCulture, out var result))
+                double.TryParse(string.Format(invCulture, "{0}", value), NumberStyles.Any, invCulture, out var result))
             {
                 return result;
             }

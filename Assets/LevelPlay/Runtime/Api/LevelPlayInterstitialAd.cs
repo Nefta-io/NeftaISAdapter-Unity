@@ -90,12 +90,14 @@ namespace Unity.Services.LevelPlay
         /// <param name="config">The ad unit configuration.</param>
         public LevelPlayInterstitialAd(string adUnitId, Config config)
         {
+            config ??= new Config.Builder().Build();
+
 #if UNITY_EDITOR && (UNITY_ANDROID || UNITY_IOS)
             m_InterstitialAd = new EditorInterstitialAd(adUnitId);
 #elif UNITY_ANDROID
-            m_InterstitialAd = new AndroidInterstitialAd(adUnitId, (AndroidInterstitialAd.Config)config.PlatformConfig);
+            m_InterstitialAd = new AndroidInterstitialAd(adUnitId, (AndroidInterstitialAd.Config)config?.PlatformConfig);
 #elif UNITY_IOS
-            m_InterstitialAd = new IosInterstitialAd(adUnitId, (IosInterstitialAd.Config)config.PlatformConfig);
+            m_InterstitialAd = new IosInterstitialAd(adUnitId, (IosInterstitialAd.Config)config?.PlatformConfig);
 #else
             m_InterstitialAd = new UnsupportedInterstitialAd(adUnitId);
 #endif

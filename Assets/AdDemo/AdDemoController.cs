@@ -12,7 +12,7 @@ namespace AdDemo
 #else // UNITY_ANDROID
         private const string _neftaAppId = "5657497763315712";
 #endif
-
+        
         [SerializeField] private Text _title;
         [SerializeField] private Toggle _networkToggle;
         [SerializeField] private Button _testSuiteButton;
@@ -34,11 +34,9 @@ namespace AdDemo
             _title.text = $"IronSource Integration {LevelPlay.PluginVersion}";
             
             Adapter.EnableLogging(true);
-            Adapter.Init(_neftaAppId);
-            Adapter.OnReady += config =>
-            {
-                Debug.Log($"[NeftaPluginIS] Should bypass Nefta optimization? {config._skipOptimization}");
-            };
+            Adapter.InitWithAppId(_neftaAppId, config => {
+                Debug.Log($"[NeftaPluginIS] Should bypass Nefta optimization? {config._skipOptimization} for {config._nuid}");
+            });
             
             IronSource.Agent.setMetaData("is_test_suite", "enable");
             LevelPlay.OnInitFailed += OnInitFailed;

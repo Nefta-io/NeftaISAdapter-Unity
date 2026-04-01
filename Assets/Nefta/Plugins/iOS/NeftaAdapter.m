@@ -11,15 +11,13 @@ extern "C" {
 
     void EnableLogging(bool enable);
     void NeftaPlugin_SetExtraParameter(const char *key, const char *value);
-    void NeftaPlugin_Init(const char *appId, OnReady onReady, OnInsights onInsights, bool sendImpressions);
+    void NeftaPlugin_Init(const char *appId, const char *clientId, OnReady onReady, OnInsights onInsights, bool sendImpressions);
     void NeftaPlugin_Record(int type, int category, int subCategory, const char *name, long value, const char *customPayload);
     void NeftaPlugin_OnExternalMediationRequest(const char *provider, int adType, const char *id0, const char *requestedAdUnitId, double requestedFloorPrice, int requestId);
     void NeftaPlugin_OnExternalMediationResponseAsString(const char *provider, const char *id0, const char *id2, double revenue, const char *precision, int status, const char *providerStatus, const char *networkStatus, const char *baseString);
     void NeftaPlugin_OnExternalMediationImpressionAsString(bool isClick, const char *provider, const char *data, const char *id0, const char *id2);
     const char * NeftaPlugin_GetNuid(bool present);
-    void NeftaPlugin_SetTracking(bool isAuthorized);
-    void NeftaPlugin_SetContentRating(const char *rating);
-    void NeftaPlugin_GetInsights(int requestId, int insights, int previousRequestId, int timeoutInSeconds);
+    void NeftaPlugin_GetInsights(int requestId, int insights, int previousRequestId);
     void NeftaPlugin_SetOverride(const char *root);
 #ifdef __cplusplus
 }
@@ -37,12 +35,13 @@ void NeftaPlugin_SetExtraParameter(const char *key, const char *value) {
     [NeftaPlugin SetExtraParameterWithKey: k value: v];
 }
 
-void NeftaPlugin_Init(const char *appId, OnReady onReady, OnInsights onInsights, bool sendImpressions) {
-    _plugin = [ISNeftaCustomAdapter initWithAppId: [NSString stringWithUTF8String: appId] sendImpressions: sendImpressions];
-    _plugin.OnReadyAsString = ^void(NSString * _Nullable initConfig) {
+void NeftaPlugin_Init(const char *appId, const char *clientId, OnReady onReady, OnInsights onInsights, bool sendImpressions) {
+	NSString *a = appId ? [NSString stringWithUTF8String: appId] : nil;
+	NSString *c = clientId ? [NSString stringWithUTF8String: clientId] : nil;
+    _plugin = [ISNeftaCustomAdapter UnityInit: a clientId: c sendImpressions: sendImpressions onReadyAsString: ^void(NSString * _Nullable initConfig) {
         const char *iC = initConfig ? [initConfig UTF8String] : NULL;
         onReady(iC);
-    };
+    }];
     _plugin.OnInsightsAsString = ^void(NSInteger requestId, NSInteger adapterResponseType, NSString * _Nullable adapterResponse) {
         const char *aR = adapterResponse ? [adapterResponse UTF8String] : NULL;
         onInsights((int)requestId, (int)adapterResponseType, aR);
@@ -88,16 +87,8 @@ const char * NeftaPlugin_GetNuid(bool present) {
     return returnString;
 }
 
-void NeftaPlugin_SetTracking(bool isAuthorized) {
-	[_plugin SetTrackingWithIsAuthorized: isAuthorized];
-}
-
-void NeftaPlugin_SetContentRating(const char *rating) {
-    [_plugin SetContentRatingWithRating: [NSString stringWithUTF8String: rating]];
-}
-
-void NeftaPlugin_GetInsights(int requestId, int insights, int previousRequestId, int timeoutInSeconds) {
-    [_plugin GetInsightsBridge: requestId insights: insights previousRequestId: previousRequestId timeout: timeoutInSeconds];
+void NeftaPlugin_GetInsights(int requestId, int insights, int previousRequestId) {
+    [_plugin GetInsightsBridge: requestId insights: insights previousRequestId: previousRequestId];
 }
 
 void NeftaPlugin_SetOverride(const char *root) {

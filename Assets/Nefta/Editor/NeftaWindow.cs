@@ -9,18 +9,11 @@ namespace Nefta.Editor
 {
     public class NeftaWindow : EditorWindow
     {
-        private bool _isLoggingEnabled;
-        
         private string _error;
         private string _androidAdapterVersion;
         private string _androidVersion;
         private string _iosAdapterVersion;
         private string _iosVersion;
-        
-        private static PluginImporter _debugAdapterImporter;
-        private static PluginImporter _debugPluginImporter;
-        private static PluginImporter _releaseAdapterImporter;
-        private static PluginImporter _releasePluginImporter;
         
         [MenuItem("Window/Nefta/Inspect", false, 200)]
         public static void ShowWindow()
@@ -30,13 +23,6 @@ namespace Nefta.Editor
         
         public void OnEnable()
         {
-            TryGetPluginImporters();
-
-            if (_debugPluginImporter != null)
-            {
-                _isLoggingEnabled = _debugPluginImporter.GetCompatibleWithPlatform(BuildTarget.Android);
-            }
-            
             _error = null;
 #if UNITY_2021_1_OR_NEWER
             GetAndroidVersions();
@@ -68,23 +54,6 @@ namespace Nefta.Editor
                 DrawVersion("Nefta SDK version", _androidVersion);
             }
             EditorGUILayout.Space(5);
-            
-            if (_debugPluginImporter == null || _releasePluginImporter == null)
-            {
-                EditorGUILayout.HelpBox("This getting Android SDKs", MessageType.Error);
-            }
-            else
-            {
-                EditorGUILayout.BeginHorizontal();
-                EditorGUILayout.LabelField("Android Debug libs:");
-                var isLoggingEnabled = EditorGUILayout.Toggle(_isLoggingEnabled);
-                EditorGUILayout.EndHorizontal();
-                if (isLoggingEnabled != _isLoggingEnabled)
-                {
-                    _isLoggingEnabled = isLoggingEnabled;
-                    TogglePlugins(_isLoggingEnabled);
-                }
-            }
         }
         
         [MenuItem("Window/Nefta/Export Nefta Custom Adapter SDK", false, int.MaxValue)]
@@ -92,9 +61,6 @@ namespace Nefta.Editor
         {
             var packageName = $"NeftaIS_SDK_{Application.version}.unitypackage";
             var assetPaths = new string[] { "Assets/Nefta" };
-            
-            TryGetPluginImporters();
-            TogglePlugins(false);
             
             try
             {
@@ -105,40 +71,6 @@ namespace Nefta.Editor
             {
                 Debug.LogError($"Error exporting {packageName}: {e.Message}");   
             }
-        }
-        
-        public static void TryGetPluginImporters()
-        {
-            var guid = AssetDatabase.FindAssets("NeftaCustomAdapter-debug")[0];
-            var path = AssetDatabase.GUIDToAssetPath(guid);
-            _debugAdapterImporter = (PluginImporter) AssetImporter.GetAtPath(path);
-
-            guid = AssetDatabase.FindAssets("NeftaCustomAdapter-release")[0];
-            path = AssetDatabase.GUIDToAssetPath(guid);
-            _releaseAdapterImporter = (PluginImporter) AssetImporter.GetAtPath(path);
-            
-            guid = AssetDatabase.FindAssets("NeftaPlugin-debug")[0];
-            path = AssetDatabase.GUIDToAssetPath(guid);
-            _debugPluginImporter = (PluginImporter) AssetImporter.GetAtPath(path);
-
-            guid = AssetDatabase.FindAssets("NeftaPlugin-release")[0];
-            path = AssetDatabase.GUIDToAssetPath(guid);
-            _releasePluginImporter = (PluginImporter) AssetImporter.GetAtPath(path);
-        }
-
-        public static void TogglePlugins(bool enable)
-        {
-            _debugAdapterImporter.SetCompatibleWithPlatform(BuildTarget.Android, enable);
-            _debugAdapterImporter.SaveAndReimport();
-            
-            _releaseAdapterImporter.SetCompatibleWithPlatform(BuildTarget.Android, !enable);
-            _releaseAdapterImporter.SaveAndReimport();
-            
-            _debugPluginImporter.SetCompatibleWithPlatform(BuildTarget.Android, enable);
-            _debugPluginImporter.SaveAndReimport();
-                    
-            _releasePluginImporter.SetCompatibleWithPlatform(BuildTarget.Android, !enable);
-            _releasePluginImporter.SaveAndReimport();
         }
         
         private static void DrawVersion(string label, string version)

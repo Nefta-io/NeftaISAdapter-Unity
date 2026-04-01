@@ -16,6 +16,7 @@ namespace Unity.Services.LevelPlay.Editor
         internal string DependencyXmlFileName { get; }
         internal string UpdateMessage { get; }
         internal Dictionary<string, SdkVersion> Versions { get; }
+        internal string SKAdNetworkIdXmlURL { get; }
 
         internal Sdk(string keyName, string displayName, string dependencyXmlURL, string dependencyXmlFileName, string updateMessage, Dictionary<string, SdkVersion> versions)
         {
@@ -47,6 +48,7 @@ namespace Unity.Services.LevelPlay.Editor
             {
                 Versions.Add(version.Key, new SdkVersion(version.Key, version.Value as Dictionary<string, object>));
             }
+            SKAdNetworkIdXmlURL = jsonDictionary.TryGetValue("SKAdNetworkIdXmlURL", out var value) ? value as string : string.Empty;
         }
 
         internal string GetDependencyXmlPath()

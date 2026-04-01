@@ -9,7 +9,7 @@ namespace Unity.Services.LevelPlay.Editor
     static class MobileDependencyResolverInstaller
     {
         const string k_UnityMediationPackage = "com.unity.services.mediation";
-        const string k_PackageUrl = @"https://s3.amazonaws.com/ssa.public/MDR/mobile-dependency-resolver.unitypackage";
+        const string k_PackageUrl = @"https://s3.amazonaws.com/ssa.public/MDR/1.2.185/mobile-dependency-resolver.unitypackage";
         const string k_DownloadPath = @"Temp/MDR.unitypackage";
 
         const string k_DoNotAskAgain = "Unity.Mediation.MobileDependencyResolver.DoNotAskAgain";

@@ -45,6 +45,31 @@ namespace Unity.Services.LevelPlay.Editor
         internal void UpdateInfoPlistWithSkAdNetworkIds(string pathToPlistFile)
         {
             var ids = new HashSet<string>();
+            var sdk = m_LevelPlayNetworkManager.IronSourceSdk;
+            if (!string.IsNullOrEmpty(sdk.SKAdNetworkIdXmlURL))
+            {
+                try
+                {
+                    ids.UnionWith(SkAdNetworkXmlParser.ParseSource(
+                        new SkAdNetworkRemoteSource(sdk.SKAdNetworkIdXmlURL)));
+                }
+                catch (Exception e)
+                {
+                    m_AnalyticsService.SendFailedToAddSkAdNetworkId(sdk.DisplayName);
+                    m_Logger.LogError($"Failed to parse SKAdNetwork for {sdk.DisplayName} files due to following reason: {e.Message}. You still can add them manually or please contact us for assistance.");
+                }
+
+                try
+                {
+                    WriteSkAdNetworkIdsToInfoPlist(ids, pathToPlistFile);
+                }
+                catch (Exception e)
+                {
+                    m_AnalyticsService.SendFailedToAddSkAdNetworkId(sdk.DisplayName);
+                    m_Logger.LogError($"Failed to update info.plist file due to following reason: {e.Message}. You still can add them manually or please contact us for assistance.");
+                }
+            }
+
             foreach (var adapter in m_LevelPlayNetworkManager.Adapters.Values.Where(adapter =>
                 !string.IsNullOrEmpty(m_LevelPlayNetworkManager.InstalledAdapterVersionString(adapter))))
             {

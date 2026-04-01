@@ -15,7 +15,7 @@ public static class dataSource
 
 public class IronSource : IronSourceIAgent
 {
-    [System.Obsolete(@"Please use the pluginVersion function", false)] public static string UNITY_PLUGIN_VERSION = @"8.9.0-r";
+    [System.Obsolete(@"Please use the pluginVersion function", false)] public static string UNITY_PLUGIN_VERSION = @"8.10.2-r";
     public static IronSource Agent { get; }
     [System.Obsolete(@"This method is deprecated and will be removed in version 9.0.0.")] public void clearRewardedVideoServerParams();
     [System.Obsolete(@"Use the LevelPlayBannerAd.DestroyAd() method instead.")] public void destroyBanner();
@@ -49,7 +49,7 @@ public class IronSource : IronSourceIAgent
     [System.Obsolete(@"Use LevelPlay.SetMetaData(string key, string value) instead.")] public void setMetaData(string key, string value);
     [System.Obsolete(@"Use LevelPlay.SetMetaData(string key, params string[] values) instead.")] public void setMetaData(string key, params string[] values);
     [System.Obsolete(@"Use LevelPlay.SetNetworkData(string networkKey, string networkData) instead.")] public void setNetworkData(string networkKey, string networkData);
-    [System.Obsolete(@"Use LevelPlay.SetPauseGame(bool pause) instead.")] public void SetPauseGame(bool pause);
+    [System.Obsolete(@"This method is deprecated. Please migrate to LevelPlay.SetPauseGame(bool pause) and other LevelPlay APIs. If you continue using IronSource.Agent APIs, use this method to handle the pause game functionality.")] public void SetPauseGame(bool pause);
     [System.Obsolete(@"This method is deprecated and will be removed in version 9.0.0.")] public void setRewardedVideoServerParams(System.Collections.Generic.Dictionary<string, string> parameters);
     [System.Obsolete(@"Use LevelPlay.SetSegment(LevelPlaySegment segment) instead.")] public void setSegment(IronSourceSegment segment);
     [System.Obsolete(@"This method is deprecated and will be removed in version 9.0.0.")] public static void setUnsupportedPlatform();
@@ -555,7 +555,7 @@ namespace com.unity3d.mediation
         [System.Obsolete(@"The constructor LevelPlayAdError will be removed in version 9.0.0.")] public LevelPlayAdError(string adUnitId, int errorCode, string errorMessage) {}
     }
 
-    [System.Obsolete(@"com.unity3d.mediation.LevelPlayAdFormat is deprecated and will be removed from the LevelPlay.Init method in version 9.0.0.")] public enum LevelPlayAdFormat
+    [System.Obsolete(@"LevelPlayAdFormat has been deprecated and will be removed as part of version 9.0.0. Please transition to using the new Ad Unit APIs and refrain from passing adFormats to the Init function.")] public enum LevelPlayAdFormat
     {
         BANNER = 0,
         INTERSTITIAL = 1,

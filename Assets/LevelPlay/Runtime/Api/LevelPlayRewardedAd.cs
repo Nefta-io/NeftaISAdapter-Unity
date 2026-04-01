@@ -97,14 +97,16 @@ namespace Unity.Services.LevelPlay
         /// <param name="config">The ad unit configuration.</param>
         public LevelPlayRewardedAd(string adUnitId, Config config)
         {
+            config ??= new Config.Builder().Build();
+
 #if !UNITY_IOS && !UNITY_ANDROID
             m_RewardedAd = new UnsupportedRewardedAd(adUnitId);
 #elif UNITY_EDITOR
             m_RewardedAd = new EditorRewardedAd(adUnitId);
 #elif UNITY_ANDROID
-            m_RewardedAd = new AndroidRewardedAd(adUnitId, (AndroidRewardedAd.Config)config.PlatformConfig);
+            m_RewardedAd = new AndroidRewardedAd(adUnitId, (AndroidRewardedAd.Config)config?.PlatformConfig);
 #elif UNITY_IOS
-            m_RewardedAd = new IosRewardedAd(adUnitId, (IosRewardedAd.Config)config.PlatformConfig);
+            m_RewardedAd = new IosRewardedAd(adUnitId, (IosRewardedAd.Config)config?.PlatformConfig);
 #endif
 
             SetupEvents();

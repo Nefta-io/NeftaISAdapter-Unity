@@ -105,6 +105,30 @@ namespace Unity.Services.LevelPlay.Editor
                 });
         }
 
+        public void SendInstallLPSDKEvent(string newVersion)
+        {
+            SendEvent(k_EventName,
+                new EventBody
+                {
+                    component = LevelPlayComponent.LevelPlayNetworkManager,
+                    action = LevelPlayAction.Install + "_Ironsource_" + newVersion,
+                    package = Constants.PackageAnalyticsIdentifier,
+                    package_ver = m_PackageVersion,
+                });
+        }
+
+        public void SendUpdateLPSDKEvent(string newVersion, string currentVersion)
+        {
+            SendEvent(k_EventName,
+                new EventBody
+                {
+                    component = LevelPlayComponent.LevelPlayNetworkManager,
+                    action = LevelPlayAction.Update + "_Ironsource_" + newVersion,
+                    package = Constants.PackageAnalyticsIdentifier,
+                    package_ver = m_PackageVersion,
+                });
+        }
+
         public void SendMdrEvent(string action)
         {
             SendEvent(k_EventName,
@@ -207,7 +231,7 @@ namespace Unity.Services.LevelPlay.Editor
             public const string FailedToAddSkanId = "FailedToAddSkanId";
 
             public const string DragAndDrop = "DragAndDrop";
-            public const string Instantiate = "Intantiate";
+            public const string Instantiate = "Instantiate";
 
             public const string MDRWindowDisplayed = "Display_Import_Window";
             public const string MDRImport = "Click_Import";

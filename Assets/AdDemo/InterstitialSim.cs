@@ -14,7 +14,6 @@ namespace AdDemo
         private const string AdUnitA = "Track A";
         private const string AdUnitB = "Track B";
         
-        private const int TimeoutInSeconds = 5;
         private readonly Color DefaultColor = new Color(0.6509804f, 0.1490196f, 0.7490196f, 1f);
         private readonly Color FillColor = Color.green;
         private readonly Color NoFillColor = Color.red;
@@ -72,7 +71,7 @@ namespace AdDemo
         
             private async Task RetryLoadWithDelay()
             {
-                await Task.Delay(5000);
+                await Task.Delay((int)(Adapter.GetRetryDelayInSeconds(Insight) * 1000));
 #if UNITY_EDITOR
                 if (!Application.isPlaying)
                 {
@@ -211,7 +210,7 @@ namespace AdDemo
                 {
                     track.RestartAfterFailedLoad();
                 }
-            }, TimeoutInSeconds);
+            });
         }
         
         private void LoadDefault(Track track)

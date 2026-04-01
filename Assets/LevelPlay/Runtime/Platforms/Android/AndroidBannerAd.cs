@@ -316,8 +316,8 @@ namespace Unity.Services.LevelPlay
             {
                 private const string KBuilderClass = "com.ironsource.unity.androidbridge.BannerAd$Config$Builder";
                 private readonly AndroidJavaObject m_BuilderJavaObject;
-                private com.unity3d.mediation.LevelPlayAdSize _size;
-                private com.unity3d.mediation.LevelPlayBannerPosition _position;
+                private com.unity3d.mediation.LevelPlayAdSize _size = com.unity3d.mediation.LevelPlayAdSize.BANNER;
+                private com.unity3d.mediation.LevelPlayBannerPosition _position = com.unity3d.mediation.LevelPlayBannerPosition.BottomCenter;
                 private string _placementName;
 
                 internal Builder()

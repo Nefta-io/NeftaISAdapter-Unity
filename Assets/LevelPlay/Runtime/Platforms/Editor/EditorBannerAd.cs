@@ -160,11 +160,11 @@ namespace Unity.Services.LevelPlay
 
             internal class Builder : IPlatformBannerAd.IConfigBuilder
             {
-                private com.unity3d.mediation.LevelPlayAdSize _adSize;
-                private com.unity3d.mediation.LevelPlayBannerPosition _position;
+                private com.unity3d.mediation.LevelPlayAdSize _adSize = com.unity3d.mediation.LevelPlayAdSize.BANNER;
+                private com.unity3d.mediation.LevelPlayBannerPosition _position = com.unity3d.mediation.LevelPlayBannerPosition.BottomCenter;
                 private string _placementName;
-                private bool _displayOnLoad;
-                private bool _respectSafeArea;
+                private bool _displayOnLoad = true;
+                private bool _respectSafeArea = false;
                 private double _bidFloor;
 
                 public void SetBidFloor(double bidFloor)

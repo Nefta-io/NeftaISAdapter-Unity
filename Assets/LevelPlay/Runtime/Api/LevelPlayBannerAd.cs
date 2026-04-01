@@ -41,6 +41,8 @@ namespace Unity.Services.LevelPlay
         /// <param name="config">The ad unit configuration.</param>
         public LevelPlayBannerAd(string adUnitId, Config config)
         {
+            config ??= new Config.Builder().Build();
+
 #if !UNITY_ANDROID && !UNITY_IOS
             _bannerAd = new UnsupportedBannerAd(adUnitId, (UnsupportedBannerAd.Config)config.PlatformConfig);
 #elif UNITY_EDITOR

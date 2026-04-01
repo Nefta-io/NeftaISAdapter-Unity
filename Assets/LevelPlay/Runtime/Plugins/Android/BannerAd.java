@@ -337,11 +337,11 @@ public class BannerAd {
 
         public static class Builder {
             private LevelPlayBannerAdView.Config.Builder builder = new LevelPlayBannerAdView.Config.Builder();
-            private String description;
+            private String description = AndroidBridgeConstants.BANNER_POSITION_BOTTOMCENTER;
             private float x;
             private float y;
-            private boolean displayOnLoad;
-            private boolean respectSafeArea;
+            private boolean displayOnLoad = true;
+            private boolean respectSafeArea = false;
 
             public void setBidFloor(double bidFloor) {
                 builder.setBidFloor(bidFloor);

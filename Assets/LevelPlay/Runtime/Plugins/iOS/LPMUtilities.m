@@ -63,14 +63,38 @@
     if (adSize == nil) {
         return @"";
     }
+    NSString *typeString = [self serializeAdSizeType:adSize];
     NSDictionary *adSizeDict = @{
-        @"description": adSize.sizeDescription ?: @"",
+        @"description": typeString,
         @"width": @(adSize.width) ?: @0,
         @"height": @(adSize.height) ?: @0
     };
     NSError *error;
     NSData *jsonData = [NSJSONSerialization dataWithJSONObject:adSizeDict options:0 error:&error];
     return jsonData ? [[NSString alloc] initWithData:jsonData encoding:NSUTF8StringEncoding] : @"";
+}
+
++ (NSString *)serializeAdSizeType:(LPMAdSize *)adSize {
+    if (adSize == nil) {
+        return @"";
+    }
+    if (adSize.isAdaptive) {
+        return @"ADAPTIVE";
+    }
+    switch (adSize.type) {
+        case LPMAdSizeBanner:
+            return @"BANNER";
+        case LPMAdSizeLarge:
+            return @"LARGE";
+        case LPMAdSizeMediumRectangle:
+            return @"MEDIUM_RECTANGLE";
+        case LPMAdSizeCustom:
+            return @"CUSTOM";
+        case LPMAdSizeLeaderBoard:
+            return @"LEADERBOARD";
+        default:
+            return @"UNKNOWN";
+    }
 }
 
 

@@ -217,7 +217,7 @@ public class IronSource : IronSourceIAgent
         _platformAgent.setNetworkData(networkKey, networkData);
     }
 
-    [Obsolete("Use LevelPlay.SetPauseGame(bool pause) instead.")]
+    [Obsolete("This method is deprecated. Please migrate to LevelPlay.SetPauseGame(bool pause) and other LevelPlay APIs. If you continue using IronSource.Agent APIs, use this method to handle the pause game functionality.")]
     /// <summary>
     /// When setting your PauseGame status to true, all your Unity 3D game activities will be paused (Except the ad callbacks).
     /// The game activity will be resumed automatically when the ad is closed.

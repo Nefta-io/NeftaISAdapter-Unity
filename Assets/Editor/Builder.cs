@@ -45,9 +45,6 @@ namespace Editor
                 options = BuildOptions.StrictMode
             };
             
-            NeftaWindow.TryGetPluginImporters();
-            NeftaWindow.TogglePlugins(false);
-            
             EditorUserBuildSettings.exportAsGoogleAndroidProject = false;
             
             var report = BuildPipeline.BuildPlayer(options);

@@ -70,7 +70,7 @@ namespace AdDemo
         
             private async Task RetryLoadWithDelay()
             {
-                await Task.Delay(5000);
+                await Task.Delay((int)(Adapter.GetRetryDelayInSeconds(Insight) * 1000));
 #if UNITY_EDITOR
                 if (!Application.isPlaying)
                 {
@@ -192,7 +192,7 @@ namespace AdDemo
                 {
                     track.RestartAfterFailedLoad();
                 }
-            }, 5);
+            });
         }
         
         private void LoadDefault(Track track)
