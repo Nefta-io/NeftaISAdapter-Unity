@@ -9,9 +9,11 @@ namespace Editor
 {
     public class Builder
     {
-        [MenuItem("Nefta developer/Export Nefta Custom Adapter SDK", false, int.MaxValue)]
+        [MenuItem("Window/Nefta/Export Nefta Custom Adapter SDK", false, int.MaxValue)]
         private static void ExportAdSdkPackage()
         {
+            NeftaWindow.ShowWindow();
+            
             var packageName = $"NeftaIS_SDK_{Application.version}.unitypackage";
             try
             {
@@ -24,7 +26,7 @@ namespace Editor
             }
         }
         
-        [MenuItem("Nefta developer/Open export location")]
+        [MenuItem("Window/Nefta/Open export location")]
         private static void OpenExportLocation()
         {
             EditorUtility.RevealInFinder(Application.dataPath);

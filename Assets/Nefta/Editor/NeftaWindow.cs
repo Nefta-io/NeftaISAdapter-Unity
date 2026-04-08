@@ -1,4 +1,3 @@
-using System;
 using System.IO;
 using System.IO.Compression;
 using System.Xml;
@@ -10,9 +9,7 @@ namespace Nefta.Editor
     public class NeftaWindow : EditorWindow
     {
         private string _error;
-        private string _androidAdapterVersion;
         private string _androidVersion;
-        private string _iosAdapterVersion;
         private string _iosVersion;
         
         [MenuItem("Window/Nefta/Inspect", false, 200)]
@@ -25,9 +22,9 @@ namespace Nefta.Editor
         {
             _error = null;
 #if UNITY_2021_1_OR_NEWER
-            GetAndroidVersions();
+            _androidVersion = GetAndroidVersions();
 #endif
-            GetIosVersions();
+            _iosVersion = GetIosVersions();
         }
 
         private void OnGUI()
@@ -39,38 +36,18 @@ namespace Nefta.Editor
             }
             
 #if UNITY_2021_1_OR_NEWER
-            if (_androidAdapterVersion != _iosAdapterVersion)
+            if (_androidVersion != _iosVersion)
             {
-                DrawVersion("Nefta IronSource Android Custom Adapter version", _androidAdapterVersion);
                 DrawVersion("Nefta SDK Android version", _androidVersion);
                 EditorGUILayout.Space(5);
-                DrawVersion("Nefta IronSource iOS Custom Adapter version", _iosAdapterVersion);
                 DrawVersion("Nefta SDK iOS version", _iosVersion);
             }
             else
 #endif
             {
-                DrawVersion("Nefta IronSource Custom Adapter version", _androidAdapterVersion);
                 DrawVersion("Nefta SDK version", _androidVersion);
             }
             EditorGUILayout.Space(5);
-        }
-        
-        [MenuItem("Window/Nefta/Export Nefta Custom Adapter SDK", false, int.MaxValue)]
-        private static void ExportAdSdkPackage()
-        {
-            var packageName = $"NeftaIS_SDK_{Application.version}.unitypackage";
-            var assetPaths = new string[] { "Assets/Nefta" };
-            
-            try
-            {
-                AssetDatabase.ExportPackage(assetPaths, packageName, ExportPackageOptions.Recurse);
-                Debug.Log($"Finished exporting {packageName}");   
-            }
-            catch (Exception e)
-            {
-                Debug.LogError($"Error exporting {packageName}: {e.Message}");   
-            }
         }
         
         private static void DrawVersion(string label, string version)
@@ -82,14 +59,9 @@ namespace Nefta.Editor
         }
         
 #if UNITY_2021_1_OR_NEWER
-        private void GetAndroidVersions()
+        private string GetAndroidVersions()
         {
-            _androidAdapterVersion = GetAarVersion("NeftaCustomAdapter-");
-            _androidVersion = GetAarVersion("NeftaPlugin-");
-        }
-        
-        private string GetAarVersion(string aarName)
-        {
+            var aarName = "NeftaPlugin-";
             var guids = AssetDatabase.FindAssets(aarName);
             if (guids.Length == 0)
             {
@@ -122,37 +94,15 @@ namespace Nefta.Editor
         }
 #endif
         
-        private void GetIosVersions()
+        private string GetIosVersions()
         {
-            var guids = AssetDatabase.FindAssets("ISNeftaCustomAdapter");
+            var guids = AssetDatabase.FindAssets("NeftaAdapter");
             if (guids.Length == 0)
             {
-                _error = "ISNeftaCustomAdapter not found in project";
-                return;
-            }
-            if (guids.Length > 3)
-            {
-                _error = "Multiple instances of ISNeftaCustomAdapter found in project";
-                return;
+                _error = "NeftaAdapter.m not found in project";
+                return null;
             }
             var wrapperPath = AssetDatabase.GUIDToAssetPath(guids[0]);
-            if (wrapperPath.EndsWith(".h"))
-            {
-                wrapperPath = AssetDatabase.GUIDToAssetPath(guids[1]);
-            }
-            using StreamReader reader = new StreamReader(wrapperPath);
-            string line;
-            while ((line = reader.ReadLine()) != null)
-            {
-                if (line.Contains("return @\""))
-                {
-                    var start = line.IndexOf('"') + 1;
-                    var end = line.LastIndexOf('"');
-                    _iosAdapterVersion = line.Substring(start, end - start);
-                    break;
-                }
-            }
-            
             var pluginPath = Path.GetDirectoryName(wrapperPath);
             XmlDocument xmlDoc = new XmlDocument();
             xmlDoc.Load(pluginPath + "/NeftaSDK.xcframework/Info.plist");
@@ -161,10 +111,10 @@ namespace Nefta.Editor
             {
                 if (dict.ChildNodes[i].InnerText == "Version")
                 {
-                    _iosVersion = dict.ChildNodes[i + 1].InnerText;
-                    break;
+                    return dict.ChildNodes[i + 1].InnerText;
                 }
             }
+            return null;
         }
     }
 }

@@ -35,7 +35,7 @@ namespace AdDemo
             
             Adapter.EnableLogging(true);
             Adapter.InitWithAppId(_neftaAppId, config => {
-                Debug.Log($"[NeftaPluginIS] Should bypass Nefta optimization? {config._skipOptimization} for {config._nuid}");
+                Debug.Log($"[NeftaPluginIS] Should skip Nefta optimization: {config._skipOptimization} for: {config._nuid}");
             });
             
             IronSource.Agent.setMetaData("is_test_suite", "enable");
