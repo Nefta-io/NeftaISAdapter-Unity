@@ -32,18 +32,9 @@ namespace Nefta
         {
             public bool skipOptimization;
             public string nuid;
-            public int disabledFeatures;
             public float[] delays;
-        }
-        
-        [Flags]
-        private enum Feature {
-            Insights = 1,
-            GameEvents = 1 << 1,
-            ExternalMediationResponse = 1 << 2,
-            ExternalMediationRequest = 1 << 3,
-            ExternalMediationImpression = 1 << 4,
-            ExternalMediationClick = 1 << 5
+            public int noDynamicResponseRetryInMs;
+            public int noDefaultResponseRetryInMs;
         }
         
         public struct ExtParams
@@ -141,7 +132,6 @@ namespace Nefta
 
         private static List<InsightRequest> _insightRequests;
         private static int _insightId;
-        private static Feature _disabledFeatures;
         private static List<float> _delays;
         
         private static SynchronizationContext _mainContext;
@@ -192,11 +182,6 @@ namespace Nefta
 
         public static void Record(GameEvent gameEvent)
         {
-            if ((_disabledFeatures & Feature.GameEvents) != 0)
-            {
-                return;
-            }
-            
             var type = gameEvent._eventType;
             var category = gameEvent._category;
             var subCategory = gameEvent._subCategory;
@@ -208,11 +193,6 @@ namespace Nefta
         
         internal static void Record(int type, int category, int subCategory, string name, long value, string customPayload)
         {
-            if ((_disabledFeatures & Feature.GameEvents) != 0)
-            {
-                return;
-            }
-            
 #if UNITY_EDITOR
             _plugin.Record(type, category, subCategory, name, value, customPayload);
 #elif UNITY_IOS
@@ -365,12 +345,6 @@ namespace Nefta
         
         public static void GetInsights(int insights, AdInsight previousInsight, OnInsightsCallback callback)
         {
-            if ((_disabledFeatures & Feature.Insights) != 0)
-            {
-                callback(new Insights());
-                return;
-            }
-            
             var id = 0;
             var previousRequestId = -1;
             if (previousInsight != null)
@@ -447,7 +421,7 @@ namespace Nefta
 #endif
         }
         
-internal static void IOnReady(string initConfig)
+        internal static void IOnReady(string initConfig)
         {
             _mainContext.Post(_ =>
             {
@@ -458,20 +432,19 @@ internal static void IOnReady(string initConfig)
                 }
                 catch (Exception e)
                 {
-                    // ignored
+                    Debug.Log("IOnReady error: " + e.Message);
                 }
                 
                 _delays.Clear();
                 if (initDto != null)
                 {
-                    _disabledFeatures = (Feature)initDto.disabledFeatures;
                     if (initDto.delays != null)
                     {
                         foreach (var delay in initDto.delays)
                         {
                             _delays.Add(delay);
                         }
-                    }   
+                    }
                 }
                 if (_delays.Count == 0)
                 {
