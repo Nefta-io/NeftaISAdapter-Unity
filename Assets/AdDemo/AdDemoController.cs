@@ -14,23 +14,21 @@ namespace AdDemo
 #endif
         
         [SerializeField] private Text _title;
-        [SerializeField] private Toggle _networkToggle;
         [SerializeField] private Button _testSuiteButton;
-
-        private bool _isSimulator;
+        
+        [SerializeField] private GameObject _groupPanel;
+        [SerializeField] private Button _defaultButton;
+        [SerializeField] private Button _optimizedButton;
+        [SerializeField] private Button _simulatorButton;
+        
+        [SerializeField] private InterstitialUi _interstitialUi;
+        [SerializeField] private RewardedUi _rewardedUi;
+        
+        [SerializeField] private InterstitialSim _interstitialSimulator;
+        [SerializeField] private RewardedSim _rewardedSimulator;
         
         private void Awake()
         {
-            string apiKey = null;
-            var demoConfig = Resources.Load<DemoConfig>("DemoConfig");
-            if (demoConfig != null)
-            {
-                apiKey = demoConfig.GetApiKey();
-                ToggleUI(demoConfig._isSimulator);
-                
-                _title.GetComponent<Button>().onClick.AddListener(() => ToggleUI(!_isSimulator));
-            }
-
             _title.text = $"IronSource Integration {LevelPlay.PluginVersion}";
             
             Adapter.EnableLogging(true);
@@ -42,54 +40,59 @@ namespace AdDemo
             LevelPlay.OnInitFailed += OnInitFailed;
             // Done implicitly in Adapter Init
             //LevelPlay.OnImpressionDataReady += Adapter.OnLevelPlayImpression;
-            LevelPlay.Init(apiKey);
+            var demoConfig = Resources.Load<DemoConfig>("DemoConfig");
+            if (demoConfig != null)
+            {
+                var apiKey = demoConfig.GetApiKey();
+                LevelPlay.Init(apiKey);
+                
+                LevelPlay.ValidateIntegration();
+            }
             
-            LevelPlay.ValidateIntegration();
+            _testSuiteButton.onClick.AddListener(OnTestSuiteClick);
             
-            _networkToggle?.onValueChanged.AddListener(OnNetworkToggled);
-            _testSuiteButton?.onClick.AddListener(OnTestSuiteClick);
-            SetSegment(false);
+            _defaultButton.onClick.AddListener(OnDefaultClick);
+            _optimizedButton.onClick.AddListener(OnOptimizedClick);
+            _simulatorButton.onClick.AddListener(OnSimulatorClick);
+        }
+
+        private void OnDefaultClick()
+        {
+            _groupPanel.SetActive(false);
+            
+            _interstitialUi.Init(new InterstitialDefault());
+            _rewardedUi.Init(new RewardedDefault());
         }
         
-        private void OnApplicationPause(bool isPaused)
+        private void OnOptimizedClick()
         {
-            LevelPlay.SetPauseGame(isPaused);
+            _groupPanel.SetActive(false);
+            
+            _interstitialUi.Init(new InterstitialOptimized());
+            _rewardedUi.Init(new RewardedOptimized());
+        }
+        
+        private void OnSimulatorClick()
+        {
+            _groupPanel.SetActive(false);
+            
+            _interstitialSimulator.Init();
+            _rewardedSimulator.Init();
         }
 
         private void OnInitFailed(LevelPlayInitError error)
         {
             Debug.Log("OnInitFailed: "+ error);
         }
-
-        private void OnNetworkToggled(bool isOn)
+        
+        private void OnApplicationPause(bool isPaused)
         {
-            //SetSegment(isOn);
+            LevelPlay.SetPauseGame(isPaused);
         }
         
         private void OnTestSuiteClick()
         {
             LevelPlay.LaunchTestSuite();
-        }
-
-        private void SetSegment(bool isIs)
-        {
-            LevelPlaySegment networkSegment = new LevelPlaySegment();
-            networkSegment.SegmentName = isIs ? "is" : "nefta";
-            LevelPlay.SetSegment(networkSegment);
-
-            Debug.Log("Selected segment: "+ networkSegment.SegmentName);
-        }
-
-        private void ToggleUI(bool isSimulator)
-        {
-            _isSimulator = isSimulator;
-            
-            transform.Find("pnl_content/InterstitialSimulatorController").gameObject.SetActive(isSimulator);
-            transform.Find("pnl_content/RewardedSimulatorController").gameObject.SetActive(isSimulator);
-            
-            transform.Find("pnl_content/TestingController").gameObject.SetActive(!isSimulator);
-            transform.Find("pnl_content/InterstitialController").gameObject.SetActive(!isSimulator);
-            transform.Find("pnl_content/RewardedController").gameObject.SetActive(!isSimulator);
         }
     }
 }

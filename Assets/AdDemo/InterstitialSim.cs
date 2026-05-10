@@ -226,7 +226,7 @@ namespace AdDemo
             track.Load();
         }
         
-        private void Awake()
+        public void Init()
         {
             Instance = this;
             
@@ -250,6 +250,8 @@ namespace AdDemo
             _show.onClick.AddListener(OnShowClick);
             
             _show.interactable = false;
+            
+            gameObject.SetActive(true);
         }
         
         private void OnLoadChanged(bool isOn)

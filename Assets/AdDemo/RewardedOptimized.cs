@@ -2,20 +2,11 @@ using System.Threading.Tasks;
 using Nefta;
 using Unity.Services.LevelPlay;
 using UnityEngine;
-using UnityEngine.UI;
 
 namespace AdDemo
 {
-    public class Rewarded : MonoBehaviour
+    public class RewardedOptimized : IRewarded
     {
-#if UNITY_IOS
-        private const string AdUnitA = "p3dh8r1mm3ua8fvv";
-        private const string AdUnitB = "doucurq8qtlnuz7p";
-#else
-        private const string AdUnitA = "x3helvrx8elhig4z";
-        private const string AdUnitB = "kftiv52431x91zuk";
-#endif
-        
         private enum State
         {
             Idle,
@@ -55,7 +46,7 @@ namespace AdDemo
             {
                 Adapter.OnExternalMediationRequestFailed(error);
 
-                Instance.SetStatus($"OnAdLoadFailed {AdUnitId}: {error}");
+                Instance._ui.SetStatus($"OnAdLoadFailed {AdUnitId}: {error}");
 
                 Rewarded = null;
                 RestartAfterFailedLoad();
@@ -85,7 +76,7 @@ namespace AdDemo
             {
                 Adapter.OnExternalMediationRequestLoaded(info);
                 
-                Instance.SetStatus($"Loaded {AdUnitId} at: {info.Revenue}");
+                Instance._ui.SetStatus($"Loaded {AdUnitId} at: {info.Revenue}");
 
                 Insight = null;
                 Revenue = info.Revenue ?? 0;
@@ -98,12 +89,12 @@ namespace AdDemo
             {
                 Adapter.OnLevelPlayClick(info);
             
-                Instance.SetStatus($"OnAdClicked {info}");
+                Instance._ui.SetStatus($"OnAdClicked {info}");
             }
             
             private void OnAdDisplayFailed(LevelPlayAdDisplayInfoError error)
             {
-                Instance.SetStatus($"OnAdDisplayFailed {error}");
+                Instance._ui.SetStatus($"OnAdDisplayFailed {error}");
                 
                 State = State.Idle;
                 Instance.RetryLoadTracks();
@@ -111,22 +102,23 @@ namespace AdDemo
             
             private void OnAdRewarded(LevelPlayAdInfo info, LevelPlayReward reward)
             {
-                Instance.SetStatus($"OnAdRewarded {info}: {reward}");
+                Instance._ui.SetStatus($"OnAdRewarded {info}: {reward}");
             }
 
             private void OnAdDisplayed(LevelPlayAdInfo info)
             {
-                Instance.SetStatus($"OnAdDisplayed {info}");
+                Instance._ui.SetStatus($"OnAdDisplayed {info}");
             }
 
             private void OnAdInfoChanged(LevelPlayAdInfo info)
             {
-                Instance.SetStatus($"OnAdInfoChanged {info}");
+                Instance._ui.SetStatus($"OnAdInfoChanged {info}");
+                Revenue = info.Revenue ?? 0;
             }
         
             private void OnAdClosed(LevelPlayAdInfo info)
             {
-                Instance.SetStatus($"OnAdClosed {info}");
+                Instance._ui.SetStatus($"OnAdClosed {info}");
 
                 State = State.Idle;
                 Instance.RetryLoadTracks();
@@ -136,16 +128,21 @@ namespace AdDemo
         private Track _trackA;
         private Track _trackB;
         private bool _isFirstResponseReceived;
+
+        private RewardedUi _ui;
+        public static RewardedOptimized Instance;
+
+        public void Init(RewardedUi ui)
+        {
+            _ui = ui;
+            
+            Instance = this;
+            
+            _trackA = new Track(RewardedUi.AdUnitA);
+            _trackB = new Track(RewardedUi.AdUnitB);
+        }
         
-        [SerializeField] private Text _title;
-        [SerializeField] private Toggle _load;
-        [SerializeField] private Text _loadText;
-        [SerializeField] private Button _show;
-        [SerializeField] private Text _status;
-        
-        public static Rewarded Instance;
-        
-        private void LoadTracks()
+        public void Load()
         {
             LoadTrack(_trackA, _trackB.State);
             LoadTrack(_trackB, _trackA.State);
@@ -175,14 +172,21 @@ namespace AdDemo
             
             Adapter.GetInsights(Insights.Rewarded, track.Insight, (Insights insights) =>
             {
-                SetStatus($"LoadWithInsights: {insights}");
+                _ui.SetStatus($"LoadWithInsights: {insights}");
                 if (insights._rewarded != null)
                 {
                     track.Insight = insights._rewarded;
-                    var config = new LevelPlayRewardedAd.Config.Builder()
-                        .SetBidFloor(track.Insight._floorPrice)
-                        .Build();
-                    track.Rewarded = new LevelPlayRewardedAd(AdUnitA, config);
+                    if (track.Insight._floorPrice >= 0)
+                    {
+                        var config = new LevelPlayRewardedAd.Config.Builder()
+                            .SetBidFloor(track.Insight._floorPrice)
+                            .Build();
+                        track.Rewarded = new LevelPlayRewardedAd(track.AdUnitId, config);   
+                    }
+                    else
+                    {
+                        track.Rewarded = new LevelPlayRewardedAd(track.AdUnitId);   
+                    }
                     
                     Adapter.OnExternalMediationRequest(track.Rewarded, track.Insight);
                     
@@ -199,7 +203,7 @@ namespace AdDemo
         {
             track.State = State.Loading;
             
-            SetStatus($"Loading {track.AdUnitId} as Default");
+            _ui.SetStatus($"Loading {track.AdUnitId} as Default");
 
             track.Rewarded = new LevelPlayRewardedAd(track.AdUnitId);
             
@@ -208,28 +212,7 @@ namespace AdDemo
             track.Load();
         }
         
-        private void Awake()
-        {
-            Instance = this;
-            
-            _trackA = new Track(AdUnitA);
-            _trackB = new Track(AdUnitB);
-            
-            _load.onValueChanged.AddListener(OnLoadChanged);
-            _show.onClick.AddListener(OnShowClick);
-
-            _show.interactable = false;
-        }
-        
-        private void OnLoadChanged(bool isOn)
-        {
-            if (isOn)
-            {
-                LoadTracks();   
-            }
-        }
-        
-        private void OnShowClick()
+        public void Show()
         {
             var isShown = false;
             if (_trackA.State == State.Ready)
@@ -247,28 +230,28 @@ namespace AdDemo
             {
                 TryShow(_trackB);
             }
-            UpdateShowButton();
+            _ui.SetAvailability(_trackA.State == State.Ready || _trackB.State == State.Ready);
         }
 
-        private bool TryShow(Track request)
+        private bool TryShow(Track track)
         {
-            request.Revenue = -1;
-            if (request.Rewarded.IsAdReady())
+            track.Revenue = -1;
+            if (track.Rewarded.IsAdReady())
             {
-                request.State = State.Shown;
-                request.Rewarded.ShowAd();
+                track.State = State.Shown;
+                track.Rewarded.ShowAd();
                 return true;
             }
-            request.State = State.Idle;
+            track.State = State.Idle;
             RetryLoadTracks();
             return false;
         }
         
         public void RetryLoadTracks()
         {
-            if (_load.isOn)
+            if (_ui.IsAutoLoad)
             {
-                LoadTracks();
+                Load();
             }
         }
 
@@ -276,22 +259,11 @@ namespace AdDemo
         {
             if (success)
             {
-                UpdateShowButton();
+                _ui.SetAvailability(true);
             }
 
             _isFirstResponseReceived = true;
             RetryLoadTracks();
-        }
-        
-        private void SetStatus(string status)
-        {
-            _status.text = status;
-            Debug.Log($"NeftaPluginIS Rewarded {status}");
-        }
-
-        private void UpdateShowButton()
-        {
-            _show.interactable = _trackA.State == State.Ready || _trackB.State == State.Ready;
         }
     }
 }
